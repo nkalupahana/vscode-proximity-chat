@@ -1,0 +1,13 @@
+diff --git a/node_modules/vscode-electron-manager/dist/index.js b/node_modules/vscode-electron-manager/dist/index.js
+index bd77f1f..ac966f1 100644
+--- a/node_modules/vscode-electron-manager/dist/index.js
++++ b/node_modules/vscode-electron-manager/dist/index.js
+@@ -195,7 +195,7 @@ class ElectronManager {
+     }
+     checkCommand(command = 'electron') {
+         return new Promise(resolve => {
+-            child_process_1.exec(`${command} --version`, { env: this.envVars }, (err, version) => {
++            child_process_1.exec(`"${command}" --version`, { env: this.envVars }, (err, version) => {
+                 err ? resolve(null) : resolve(version.replace(/[\r\n]/, '').trim());
+             });
+         });
