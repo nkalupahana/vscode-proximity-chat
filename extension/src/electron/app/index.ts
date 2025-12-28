@@ -47,7 +47,11 @@ await new Promise<void>((resolve, reject) => {
 console.log("Connected!");
 
 pc.ontrack = event => {
-  console.log("Received track", event);
+  const audio = new Audio();
+  audio.srcObject = event.streams[0];
+  audio.autoplay = true;
+
+  document.getElementById("audios")!.appendChild(audio);
 };
 
 // Send track
