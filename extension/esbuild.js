@@ -53,6 +53,7 @@ async function main() {
                 assets: {
                     from: ['src/electron/views/**/*'],
                     to: ['views'],
+                    watch
                 },
             })],
     });

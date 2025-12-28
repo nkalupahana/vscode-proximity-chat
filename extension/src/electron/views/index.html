@@ -1,1 +1,51 @@
 <p>test</p>
+<script>
+  const BASE_URL = "http://localhost:8788";
+  const APP_ID = 'c70b6b8e6a656a5f5a61bfacf780b437';
+
+  (async () => {
+    // Set up connection and session
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: 'stun:stun.cloudflare.com:3478'
+        }
+      ],
+      bundlePolicy: 'max-bundle'
+    });
+
+    const localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true
+    });
+
+    localStream.getTracks().map(track =>
+        pc.addTransceiver(track, {
+          direction: 'sendonly'
+        })
+    );
+
+    await pc.setLocalDescription(await pc.createOffer());
+    const response = await fetch(`${BASE_URL}/session`, {
+      method: 'POST',
+      body: JSON.stringify({
+        sdp: pc.localDescription.sdp
+      })
+    });
+
+    const session = await response.json();
+    await pc.setRemoteDescription(
+      new RTCSessionDescription(session.sessionDescription)
+    );
+
+    await new Promise((resolve, reject) => {
+      pc.addEventListener('iceconnectionstatechange', ev => {
+        if (ev.target.iceConnectionState === 'connected') {
+          resolve();
+        }
+        setTimeout(reject, 5000, 'connect timeout');
+      });
+    });
+
+    console.log("Connected!");
+  })();
+</script>
