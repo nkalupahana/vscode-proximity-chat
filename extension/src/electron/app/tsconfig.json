@@ -1,14 +1,14 @@
 {
-	"exclude": ["src/electron/app"], // uses a separate tsconfig
 	"compilerOptions": {
-		"module": "Node16",
-		"target": "ES2022",
+		"module": "esnext",
+		"target": "esnext",
+		"moduleResolution": "bundler",
 		"lib": [
-			"ES2022"
+			"ESNext",
+            "DOM"
 		],
 		"sourceMap": true,
 		"skipLibCheck": true,
-		"rootDir": "src",
 		"strict": true,   /* enable all strict type-checking options */
 		/* Additional Checks */
 		// "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */

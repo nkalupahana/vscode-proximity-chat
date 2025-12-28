@@ -58,20 +58,31 @@ async function main() {
             })],
     });
 
+    const electronAppCtx = await esbuild.context({
+        ...baseConfig,
+        entryPoints: ['src/electron/app/index.ts'],
+        outfile: 'dist/app.js',
+        // plugins: [esbuildProblemMatcherPlugin],
+        format: 'esm',
+    });
+
     if (watch) {
         await Promise.all([
             extensionCtx.watch(),
-            electronCtx.watch()
+            electronCtx.watch(),
+            electronAppCtx.watch()
         ]);
         console.log('Watching for changes...');
     } else {
         await Promise.all([
             extensionCtx.rebuild(),
-            electronCtx.rebuild()
+            electronCtx.rebuild(),
+            electronAppCtx.rebuild()
         ]);
         await Promise.all([
             extensionCtx.dispose(),
-            electronCtx.dispose()
+            electronCtx.dispose(),
+            electronAppCtx.dispose()
         ]);
     }
 }
