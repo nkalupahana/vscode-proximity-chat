@@ -1,6 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { cloudflareSessionSchema, cloudflareTrackSchema, messageSchema, sessionSchema, setTrackMessageSchema } from './schema';
-import z from 'zod';
+import { cloudflareSessionSchema, sendTrackSchema, messageSchema, sessionSchema, receiveTracksSchema, renegotiateSchema, cloudflareReceiveTrackSchema, cloudflareSendTrackSchema } from './schema';
 
 const getBasePath = (appId: string) => {
   return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
@@ -29,8 +28,10 @@ const createSession = async (request: Request, env: Env) => {
   return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
 }
 
-const setTrack = async (data: z.infer<typeof setTrackMessageSchema>, env: Env, sessionId: string) => {
-  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${sessionId}/tracks/new`, {
+const sendTrack = async (request: Request, env: Env) => {
+  const data = sendTrackSchema.parse(await request.json());
+
+  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -47,7 +48,49 @@ const setTrack = async (data: z.infer<typeof setTrackMessageSchema>, env: Env, s
 
   // TODO: handle errors
   if (!response.ok) {}
-  return cloudflareTrackSchema.parse(await response.json());
+  return new Response(JSON.stringify(cloudflareSendTrackSchema.parse(await response.json())));
+}
+
+const receiveTracks = async (request: Request, env: Env) => {
+  const data = receiveTracksSchema.parse(await request.json());
+
+  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${env.APP_TOKEN}`,
+    },
+    body: JSON.stringify({
+      tracks: data.tracks
+    }),
+  });
+
+  // TODO: handle errors
+  if (!response.ok) {}
+  return new Response(JSON.stringify(cloudflareReceiveTrackSchema.parse(await response.json())));
+}
+
+const renegotiate = async (request: Request, env: Env) => {
+  const data = renegotiateSchema.parse(await request.json());
+
+  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/renegotiate`, {
+    method: 'PUT',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${env.APP_TOKEN}`,
+    },
+    body: JSON.stringify({
+      sessionDescription: {
+        type: "answer",
+        sdp: data.sdp
+      }
+    }),
+  });
+
+  // TODO: handle errors
+  if (!response.ok) {}
+  console.log(await response.json())
+  return new Response();
 }
 
 const createWebSocket = async (request: Request, env: Env) => {
@@ -73,6 +116,19 @@ export default {
     // Create session request
     if (url.pathname === '/session' && request.method === 'POST') {
       return createSession(request, env);
+    }
+
+    if (url.pathname === '/tracks/send' && request.method === 'POST') {
+      return sendTrack(request, env);
+    }
+
+    if (url.pathname === '/tracks/receive' && request.method === 'POST') {
+      // TODO: handle tracks to receive
+      return receiveTracks(request, env);
+    }
+
+    if (url.pathname === '/renegotiate') {
+      return renegotiate(request, env);
     }
 
     if (url.pathname === '/websocket' && request.method === 'GET') {
@@ -120,6 +176,10 @@ export class WebSocketServer extends DurableObject {
     if (!sessionId) {
       return new Response("Missing sessionId", { status: 400 });
     }
+    const trackId = url.searchParams.get("trackId");
+    if (!trackId) {
+      return new Response("Missing trackId", { status: 400 });
+    }
 
     // Calling `acceptWebSocket()` informs the runtime that this WebSocket is to begin terminating
     // request within the Durable Object. It has the effect of "accepting" the connection,
@@ -133,11 +193,11 @@ export class WebSocketServer extends DurableObject {
     this.ctx.acceptWebSocket(server);
 
     // Generate a random UUID for the session.
-    const id = crypto.randomUUID();
+    const id = sessionId;
 
     // Attach the session ID to the WebSocket connection and serialize it.
     // This is necessary to restore the state of the connection when the Durable Object wakes up.
-    const data = { id, sessionId };
+    const data = { id, trackId };
     server.serializeAttachment(data);
 
     // Add the WebSocket connection to the map of active sessions.
@@ -153,34 +213,32 @@ export class WebSocketServer extends DurableObject {
     // Get the session associated with the WebSocket connection.
     const session = this.sessions.get(ws)!;
     const message = messageSchema.parse(JSON.parse(messageStr));
-
-    if (message.command === "set_track") {
-      const { sessionDescription } = await setTrack(message, this.env, session.sessionId);
-
-      const newAttachment = {...session, trackName: message.track.trackName };
+    if (message.command === "set_path") {
+      const newAttachment = { ...session, path: message.path };
       ws.serializeAttachment(newAttachment);
       this.sessions.set(ws, newAttachment);
 
-      ws.send(JSON.stringify({
-        command: "set_track_result",
-        sessionDescription
-      }));
-
-      // Collect all active tracks
-      const tracks = [];
-      for (const [_, attachment] of this.sessions) {
-        if (!attachment.trackName) continue;
-        tracks.push({
-          sessionId: attachment.sessionId,
-          trackName: attachment.trackName
+      // Collect all active sessions
+      // TODO: should only collect relevant ones based on
+      // user path
+      const sessions = [];
+      for (const [_, session] of this.sessions) {
+        if (!session.trackId) continue;
+        if (!session.path) continue;
+        sessions.push({
+          id: session.id,
+          trackId: session.trackId
         });
       }
+
+      console.log(this.sessions);
+      console.log(sessions)
 
       // Send active track data to all clients
       for (const [ws, _] of this.sessions) {
         ws.send(JSON.stringify({
-          command: "active_tracks",
-          tracks
+          command: "active_sessions",
+          sessions
         }));
       }
     }
