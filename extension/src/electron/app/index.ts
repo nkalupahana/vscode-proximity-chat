@@ -1,8 +1,6 @@
 import { Mutex } from "async-mutex";
 const BASE_URL = "http://localhost:8788";
 
-console.log(Mutex);
-
 // Set up connection and session
 const pc = new RTCPeerConnection({
   iceServers: [
@@ -27,7 +25,7 @@ await pc.setLocalDescription(await pc.createOffer());
 const response = await fetch(`${BASE_URL}/session`, {
   method: 'POST',
   body: JSON.stringify({
-    sdp: pc.localDescription.sdp
+    sdp: pc.localDescription!.sdp
   })
 });
 
@@ -36,9 +34,9 @@ await pc.setRemoteDescription(
   new RTCSessionDescription(session.sessionDescription)
 );
 
-await new Promise((resolve, reject) => {
+await new Promise<void>((resolve, reject) => {
   pc.addEventListener('iceconnectionstatechange', ev => {
-    if (ev.target.iceConnectionState === 'connected') {
+    if (ev.target!.iceConnectionState === 'connected') {
       resolve();
     }
     setTimeout(reject, 5000, 'connect timeout');
@@ -52,6 +50,10 @@ const trackData = {
   mid: transceiver.mid,
   trackName: transceiver.sender.track.id
 };
+
+const rtcMutex = new Mutex();
+
+await rtcMutex.acquire(); // released by set_track_result
 await pc.setLocalDescription(await pc.createOffer());
 
 const ws = new WebSocket(`${BASE_URL}/websocket?sessionId=${session.sessionId}`);
@@ -59,7 +61,7 @@ ws.onopen = () => {
   console.log("WebSocket connected!");
   ws.send(JSON.stringify({
     command: "set_track",
-    sdp: pc.localDescription.sdp,
+    sdp: pc.localDescription!.sdp,
     track: trackData
   }));
 };
@@ -71,6 +73,7 @@ ws.onmessage = async ev => {
     await pc.setRemoteDescription(
       new RTCSessionDescription(data.sessionDescription)
     );
+    rtcMutex.release();
   } else if (data.command === "active_tracks") {
     for (const track of data.tracks) {
       if (track.sessionId === session.sessionId) continue;
@@ -78,5 +81,3 @@ ws.onmessage = async ev => {
     }
   }
 };
-
-export {};
