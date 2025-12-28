@@ -1,11 +1,15 @@
 import { DurableObject } from 'cloudflare:workers';
-import { cloudflareSessionSchema, sessionSchema } from './schema';
+import { cloudflareSessionSchema, cloudflareTrackSchema, messageSchema, sessionSchema, setTrackMessageSchema } from './schema';
+import z from 'zod';
+
+const getBasePath = (appId: string) => {
+  return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
+}
 
 const createSession = async (request: Request, env: Env) => {
   const data = sessionSchema.parse(await request.json());
-  const basePath = `https://rtc.live.cloudflare.com/v1/apps/${env.APP_ID}`;
 
-  const response = await fetch(`${basePath}/sessions/new`, {
+  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/new`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -19,40 +23,60 @@ const createSession = async (request: Request, env: Env) => {
     }),
   });
 
+  // TODO: handle errors
+  if (!response.ok) {}
+
   return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
+}
+
+const setTrack = async (data: z.infer<typeof setTrackMessageSchema>, env: Env, sessionId: string) => {
+  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${sessionId}/tracks/new`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      Authorization: `Bearer ${env.APP_TOKEN}`,
+    },
+    body: JSON.stringify({
+      sessionDescription: {
+        type: 'offer',
+        sdp: data.sdp,
+      },
+      tracks: [data.track]
+    }),
+  });
+
+  // TODO: handle errors
+  if (!response.ok) {}
+  return cloudflareTrackSchema.parse(await response.json());
+}
+
+const createWebSocket = async (request: Request, env: Env) => {
+  // Expect to receive a WebSocket Upgrade request.
+  // If there is one, accept the request and return a WebSocket Response.
+  const upgradeHeader = request.headers.get('Upgrade');
+  if (!upgradeHeader || upgradeHeader !== 'websocket') {
+    return new Response('Expected Upgrade: websocket', {
+      status: 426,
+    });
+  }
+
+  // TODO: replace with Git remote instead of foo
+  const stub = env.WEBSOCKET_SERVER.getByName("foo");
+  return stub.fetch(request);
 }
 
 // Worker
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-	  const url = new URL(request.url);
+    const url = new URL(request.url);
 
     // Create session request
     if (url.pathname === '/session' && request.method === 'POST') {
       return createSession(request, env);
     }
 
-    if (url.pathname === '/websocket') {
-      // Expect to receive a WebSocket Upgrade request.
-      // If there is one, accept the request and return a WebSocket Response.
-      const upgradeHeader = request.headers.get('Upgrade');
-      if (!upgradeHeader || upgradeHeader !== 'websocket') {
-        return new Response('Worker expected Upgrade: websocket', {
-          status: 426,
-        });
-      }
-
-      if (request.method !== 'GET') {
-        return new Response('Worker expected GET method', {
-          status: 400,
-        });
-      }
-
-      // Since we are hard coding the Durable Object ID by providing the constant name 'foo',
-      // all requests to this Worker will be sent to the same Durable Object instance.
-      let stub = env.WEBSOCKET_SERVER.getByName("foo");
-
-      return stub.fetch(request);
+    if (url.pathname === '/websocket' && request.method === 'GET') {
+      return createWebSocket(request, env);
     }
 
     return new Response(null, { status: 404 });
@@ -91,6 +115,11 @@ export class WebSocketServer extends DurableObject {
     // Creates two ends of a WebSocket connection.
     const webSocketPair = new WebSocketPair();
     const [client, server] = Object.values(webSocketPair);
+    const url = new URL(request.url);
+    const sessionId = url.searchParams.get("sessionId");
+    if (!sessionId) {
+      return new Response("Missing sessionId", { status: 400 });
+    }
 
     // Calling `acceptWebSocket()` informs the runtime that this WebSocket is to begin terminating
     // request within the Durable Object. It has the effect of "accepting" the connection,
@@ -108,10 +137,11 @@ export class WebSocketServer extends DurableObject {
 
     // Attach the session ID to the WebSocket connection and serialize it.
     // This is necessary to restore the state of the connection when the Durable Object wakes up.
-    server.serializeAttachment({ id });
+    const data = { id, sessionId };
+    server.serializeAttachment(data);
 
     // Add the WebSocket connection to the map of active sessions.
-    this.sessions.set(server, { id });
+    this.sessions.set(server, data);
 
     return new Response(null, {
       status: 101,
@@ -119,26 +149,58 @@ export class WebSocketServer extends DurableObject {
     });
   }
 
-  async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+  async webSocketMessage(ws: WebSocket, messageStr: string) {
     // Get the session associated with the WebSocket connection.
     const session = this.sessions.get(ws)!;
+    const message = messageSchema.parse(JSON.parse(messageStr));
 
-    // Upon receiving a message from the client, the server replies with the same message, the session ID of the connection,
-    // and the total number of connections with the "[Durable Object]: " prefix
-    ws.send(`[Durable Object] message: ${message}, from: ${session.id}, to: the initiating client. Total connections: ${this.sessions.size}`);
+    if (message.command === "set_track") {
+      const { sessionDescription } = await setTrack(message, this.env, session.sessionId);
 
-    // Send a message to all WebSocket connections, loop over all the connected WebSockets.
-    this.sessions.forEach((attachment, connectedWs) => {
-      connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients. Total connections: ${this.sessions.size}`);
-    });
+      const newAttachment = {...session, trackName: message.track.trackName };
+      ws.serializeAttachment(newAttachment);
+      this.sessions.set(ws, newAttachment);
 
-    // Send a message to all WebSocket connections except the connection (ws),
-    // loop over all the connected WebSockets and filter out the connection (ws).
-    this.sessions.forEach((attachment, connectedWs) => {
-      if (connectedWs !== ws) {
-          connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients except the initiating client. Total connections: ${this.sessions.size}`);
+      ws.send(JSON.stringify({
+        command: "set_track_result",
+        sessionDescription
+      }));
+
+      // Collect all active tracks
+      const tracks = [];
+      for (const [_, attachment] of this.sessions) {
+        if (!attachment.trackName) continue;
+        tracks.push({
+          sessionId: attachment.sessionId,
+          trackName: attachment.trackName
+        });
       }
-    });
+
+      // Send active track data to all clients
+      for (const [ws, _] of this.sessions) {
+        ws.send(JSON.stringify({
+          command: "active_tracks",
+          tracks
+        }));
+      }
+    }
+
+    // // Upon receiving a message from the client, the server replies with the same message, the session ID of the connection,
+    // // and the total number of connections with the "[Durable Object]: " prefix
+    // ws.send(`[Durable Object] message: ${message}, from: ${session.id}, to: the initiating client. Total connections: ${this.sessions.size}`);
+
+    // // Send a message to all WebSocket connections, loop over all the connected WebSockets.
+    // this.sessions.forEach((attachment, connectedWs) => {
+    //   connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients. Total connections: ${this.sessions.size}`);
+    // });
+
+    // // Send a message to all WebSocket connections except the connection (ws),
+    // // loop over all the connected WebSockets and filter out the connection (ws).
+    // this.sessions.forEach((attachment, connectedWs) => {
+    //   if (connectedWs !== ws) {
+    //     connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients except the initiating client. Total connections: ${this.sessions.size}`);
+    //   }
+    // });
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {

@@ -18,11 +18,11 @@
       audio: true
     });
 
-    localStream.getTracks().map(track =>
-        pc.addTransceiver(track, {
-          direction: 'sendonly'
-        })
-    );
+    // TODO: handle different tracks?
+    const track = localStream.getTracks()[0];
+    const transceiver = pc.addTransceiver(track, {
+      direction: 'sendonly'
+    })
 
     await pc.setLocalDescription(await pc.createOffer());
     const response = await fetch(`${BASE_URL}/session`, {
@@ -47,5 +47,37 @@
     });
 
     console.log("Connected!");
+
+    const trackData = {
+      location: 'local',
+      mid: transceiver.mid,
+      trackName: transceiver.sender.track.id
+    };
+    await pc.setLocalDescription(await pc.createOffer());
+
+    const ws = new WebSocket(`${BASE_URL}/websocket?sessionId=${session.sessionId}`);
+    ws.onopen = () => {
+      console.log("WebSocket connected!");
+      ws.send(JSON.stringify({
+        command: "set_track",
+        sdp: pc.localDescription.sdp,
+        track: trackData
+      }));
+    };
+
+    ws.onmessage = async ev => {
+      const data = JSON.parse(ev.data);
+      console.log(data.command)
+      if (data.command === "set_track_result") {
+        await pc.setRemoteDescription(
+          new RTCSessionDescription(data.sessionDescription)
+        );
+      } else if (data.command === "active_tracks") {
+        for (const track of data.tracks) {
+          if (track.sessionId === session.sessionId) continue;
+          console.log("TODO: Connect to track", track);
+        }
+      }
+    };
   })();
 </script>
