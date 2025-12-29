@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "async-mutex": "^0.5.0",
+    "git-url-parse": "^16.1.0",
     "vscode-electron-manager": "^0.0.4"
   }
 }

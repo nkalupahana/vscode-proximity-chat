@@ -19,7 +19,7 @@ const localStream = await navigator.mediaDevices.getUserMedia({
 const track = localStream.getTracks()[0];
 const transceiver = pc.addTransceiver(track, {
   direction: 'sendonly'
-})
+});
 
 await pc.setLocalDescription(await pc.createOffer());
 const sessionResponse = await fetch(`${BASE_URL}/session`, {
@@ -37,7 +37,7 @@ await pc.setRemoteDescription(
 
 await new Promise<void>((resolve, reject) => {
   pc.addEventListener('iceconnectionstatechange', ev => {
-    if (ev.target!.iceConnectionState === 'connected') {
+    if ((ev.target as RTCPeerConnection).iceConnectionState === 'connected') {
       resolve();
     }
     setTimeout(reject, 5000, 'connect timeout');
@@ -59,7 +59,7 @@ await pc.setLocalDescription(await pc.createOffer());
 const trackData = {
   location: 'local',
   mid: transceiver.mid,
-  trackName: transceiver.sender.track.id
+  trackName: transceiver.sender.track!.id
 };
 const trackResponse = await fetch(`${BASE_URL}/tracks/send`, {
   method: 'POST',
@@ -69,7 +69,7 @@ const trackResponse = await fetch(`${BASE_URL}/tracks/send`, {
     track: trackData
   })
 });
-const trackResponseData = await trackResponse.json()
+const trackResponseData = await trackResponse.json();
 
 await pc.setRemoteDescription(
   new RTCSessionDescription(trackResponseData.sessionDescription)
@@ -88,7 +88,6 @@ ws.onopen = () => {
 };
 
 const activeSessionsMutex = new Mutex();
-const activeSessions = {};
 
 ws.onmessage = async ev => {
   const data = JSON.parse(ev.data);
