@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { cloudflareSessionSchema, sendTrackSchema, messageSchema, sessionSchema, receiveTracksSchema, renegotiateSchema, cloudflareReceiveTrackSchema, cloudflareSendTrackSchema } from './schema';
+import sdp from "sdp";
 
 const getBasePath = (appId: string) => {
   return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
@@ -24,7 +25,6 @@ const createSession = async (request: Request, env: Env) => {
 
   // TODO: handle errors
   if (!response.ok) {}
-
   return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
 }
 
@@ -67,7 +67,25 @@ const receiveTracks = async (request: Request, env: Env) => {
 
   // TODO: handle errors
   if (!response.ok) {}
-  return new Response(JSON.stringify(cloudflareReceiveTrackSchema.parse(await response.json())));
+  const datap = await response.json();
+  const responseJson = cloudflareReceiveTrackSchema.parse(datap);
+  const midToTrackId: Record<string, string> = {};
+  for (const track of responseJson.tracks) {
+    midToTrackId[track.mid] = track.trackName;
+  }
+  const streamIdToTrackId: Record<string, string> = {};
+  const sections = sdp.splitSections(responseJson.sessionDescription.sdp);
+  for (const section of sections) {
+    if (sdp.getKind(section) !== "audio") continue;
+    if (sdp.getDirection(section, section) !== "sendonly") continue;
+
+    const mid = sdp.getMid(section);
+    if (!(mid in midToTrackId)) continue;
+
+    const msid = sdp.parseMsid(section);
+    streamIdToTrackId[msid.stream] = midToTrackId[mid]!;
+  }
+  return new Response(JSON.stringify({...responseJson, streamIdToTrackId }));
 }
 
 const renegotiate = async (request: Request, env: Env) => {
@@ -89,7 +107,7 @@ const renegotiate = async (request: Request, env: Env) => {
 
   // TODO: handle errors
   if (!response.ok) {}
-  console.log(await response.json())
+  console.log("renegotiate", await response.json())
   return new Response();
 }
 
@@ -227,12 +245,10 @@ export class WebSocketServer extends DurableObject {
         if (!session.path) continue;
         sessions.push({
           id: session.id,
-          trackId: session.trackId
+          trackId: session.trackId,
+          path: session.path
         });
       }
-
-      console.log(this.sessions);
-      console.log(sessions)
 
       // Send active track data to all clients
       for (const [ws, _] of this.sessions) {
@@ -242,23 +258,6 @@ export class WebSocketServer extends DurableObject {
         }));
       }
     }
-
-    // // Upon receiving a message from the client, the server replies with the same message, the session ID of the connection,
-    // // and the total number of connections with the "[Durable Object]: " prefix
-    // ws.send(`[Durable Object] message: ${message}, from: ${session.id}, to: the initiating client. Total connections: ${this.sessions.size}`);
-
-    // // Send a message to all WebSocket connections, loop over all the connected WebSockets.
-    // this.sessions.forEach((attachment, connectedWs) => {
-    //   connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients. Total connections: ${this.sessions.size}`);
-    // });
-
-    // // Send a message to all WebSocket connections except the connection (ws),
-    // // loop over all the connected WebSockets and filter out the connection (ws).
-    // this.sessions.forEach((attachment, connectedWs) => {
-    //   if (connectedWs !== ws) {
-    //     connectedWs.send(`[Durable Object] message: ${message}, from: ${session.id}, to: all clients except the initiating client. Total connections: ${this.sessions.size}`);
-    //   }
-    // });
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {

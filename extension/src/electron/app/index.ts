@@ -1,4 +1,6 @@
 import { Mutex } from "async-mutex";
+import { getPathDistance } from "./utils";
+
 const BASE_URL = "http://localhost:8787";
 declare global {
   interface Window {
@@ -12,6 +14,9 @@ declare global {
 let ws: WebSocket | null = null;
 let remote: string | null = null;
 let path: string | null = null;
+let lastActiveTracksMessage: any = null;
+let pendingStreamIdToTrackId: Record<string, string> = {};
+let activeTracks: Record<string, HTMLAudioElement> = {};
 
 // Set up connection and session
 const pc = new RTCPeerConnection({
@@ -81,28 +86,80 @@ await pc.setRemoteDescription(
 
 // Prepare for receiving tracks
 pc.ontrack = event => {
-  const audio = new Audio();
-  audio.srcObject = event.streams[0];
-  audio.autoplay = true;
+  const stream = event.streams[0];
+  const trackId = pendingStreamIdToTrackId[stream.id];
+  if (!trackId) {
+    console.log("Received stream that was not known to be requested", event);
+    return;
+  }
 
+  if (activeTracks[trackId]) {
+    console.log("Received track that is already active, ignoring.");
+    return;
+  }
+
+  const audio = new Audio();
+  audio.srcObject = stream;
+  audio.autoplay = true;
+  audio.setAttribute("data-track-id", trackId);
+
+  activeTracks[trackId] = audio;
+  adjustVolumeOfExistingTracks();
   document.getElementById("audios")!.appendChild(audio);
 };
 
-window.electronAPI.onSetPath((path) => {
-  if (remote !== path.remote) {
-    remote = path.remote;
+const setPath = (path: string) => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    command: "set_path",
+    path
+  }));
+};
+
+window.electronAPI.onSetPath((newPath) => {
+  if (remote !== newPath.remote) {
+    remote = newPath.remote;
     ws?.close();
     ws = null;
   }
 
+  path = newPath.path;
+
   if (ws === null) {
     setUpWebSocket();
   }
+  setPath(path);
+  adjustVolumeOfExistingTracks();
 });
 
 // We're ready to go! Request a path from the extension to 
 // set up the websocket
 window.electronAPI.requestPath();
+
+const activeSessionsMutex = new Mutex();
+
+const adjustVolumeOfExistingTracks = () => {
+  if (!path) {
+    for (const trackId in activeTracks) {
+      activeTracks[trackId].volume = 0;
+    }
+    return;
+  }
+
+  for (const session of lastActiveTracksMessage.sessions) {
+    if (!(session.trackId in activeTracks)) continue;
+    const dist = getPathDistance(session.path, path);
+    console.log("Distance between", session.path, "and", path, "is", dist);
+    const DISTANCE_TO_VOLUME = {
+      0: 1,
+      1: 0.6,
+      2: 0.1
+    } as Record<number, number>;
+    const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
+    console.log("Volume for", session.trackId, "is", volume);
+    activeTracks[session.trackId].volume = volume;
+  }
+};
 
 const setUpWebSocket = () => {
   if (!sessionId || !trackData.trackName || !remote) return;
@@ -115,23 +172,24 @@ const setUpWebSocket = () => {
   ws.onopen = () => {
     console.log("WebSocket connected!");
     if (path) {
-      ws?.send(JSON.stringify({
-        command: "set_path",
-        path
-      }));
+      setPath(path);
+    } else {
+      window.electronAPI.requestPath();
     }
   };
-
-  const activeSessionsMutex = new Mutex();
 
   ws.onmessage = async ev => {
     const data = JSON.parse(ev.data);
     console.log(data.command);
     if (data.command === "active_sessions") {
       activeSessionsMutex.runExclusive(async () => {
+        lastActiveTracksMessage = data;
+        adjustVolumeOfExistingTracks();
         const tracksToConnect = [];
         for (const session of data.sessions) {
           if (sessionId === session.id) continue;
+          if (session.trackId in activeTracks) continue;
+          
           tracksToConnect.push({
             location: "remote",
             sessionId: session.id,
@@ -151,6 +209,11 @@ const setUpWebSocket = () => {
           // TODO: handle error
           if (!trackResponse.ok) { }
           const trackResponseData = await trackResponse.json();
+
+          pendingStreamIdToTrackId = {
+            ...pendingStreamIdToTrackId,
+            ...trackResponseData.streamIdToTrackId
+          };
 
           await pc.setRemoteDescription(
             new RTCSessionDescription(

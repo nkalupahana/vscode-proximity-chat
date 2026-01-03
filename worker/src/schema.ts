@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { tr } from 'zod/v4/locales';
 
 export const sessionSchema = z.object({
   sdp: z.string(),
@@ -25,6 +26,11 @@ export const cloudflareSendTrackSchema = z.object({
 
 export const cloudflareReceiveTrackSchema = z.object({
   requiresImmediateRenegotiation: z.literal(true),
+  tracks: z.object({
+    sessionId: z.string(),
+    trackName: z.string(),
+    mid: z.string(),
+  }).array(),
   sessionDescription: offerSessionDescriptionSchema
 })
 
