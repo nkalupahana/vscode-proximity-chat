@@ -1,7 +1,16 @@
 diff --git a/node_modules/vscode-electron-manager/dist/index.js b/node_modules/vscode-electron-manager/dist/index.js
-index bd77f1f..ac966f1 100644
+index bd77f1f..e416db4 100644
 --- a/node_modules/vscode-electron-manager/dist/index.js
 +++ b/node_modules/vscode-electron-manager/dist/index.js
+@@ -148,7 +148,7 @@ class ElectronManager {
+                     return;
+                 }
+                 // TODO Use better regex to detect 'electron-${version}-${os.platform()}-[x|arm]64'
+-                files = files.filter(f => f.startsWith('electron-') && f.endsWith('64'));
++                files = files.filter(f => f.startsWith('electron-'));
+                 // don't know what to do with multiple installations at this point
+                 // so just use the first file name for now
+                 const dirName = files[0];
 @@ -195,7 +195,7 @@ class ElectronManager {
      }
      checkCommand(command = 'electron') {

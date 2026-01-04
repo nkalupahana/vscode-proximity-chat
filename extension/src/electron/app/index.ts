@@ -7,6 +7,9 @@ declare global {
     electronAPI: {
       requestPath: () => void;
       onSetPath: (callback: (data: { path: string, remote: string }) => void) => void;
+      debug: (message: string) => void;
+      info: (message: string) => void;
+      error: (message: string) => void;
     };
   }
 }
@@ -61,7 +64,7 @@ await new Promise<void>((resolve, reject) => {
   });
 });
 
-console.log("Connected!");
+window.electronAPI.debug("Connected!");
 
 // Send track
 await pc.setLocalDescription(await pc.createOffer());
@@ -89,12 +92,12 @@ pc.ontrack = event => {
   const stream = event.streams[0];
   const trackId = pendingStreamIdToTrackId[stream.id];
   if (!trackId) {
-    console.log("Received stream that was not known to be requested", event);
+    window.electronAPI.debug("Received stream that was not known to be requested");
     return;
   }
 
   if (activeTracks[trackId]) {
-    console.log("Received track that is already active, ignoring.");
+    window.electronAPI.debug("Received track that is already active, ignoring.");
     return;
   }
 
@@ -149,14 +152,12 @@ const adjustVolumeOfExistingTracks = () => {
   for (const session of lastActiveTracksMessage.sessions) {
     if (!(session.trackId in activeTracks)) continue;
     const dist = getPathDistance(session.path, path);
-    console.log("Distance between", session.path, "and", path, "is", dist);
     const DISTANCE_TO_VOLUME = {
       0: 1,
       1: 0.6,
       2: 0.1
     } as Record<number, number>;
     const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
-    console.log("Volume for", session.trackId, "is", volume);
     activeTracks[session.trackId].volume = volume;
   }
 };
@@ -170,7 +171,7 @@ const setUpWebSocket = () => {
   wsParams.set("remote", remote);
   ws = new WebSocket(`${BASE_URL}/websocket?${wsParams.toString()}`);
   ws.onopen = () => {
-    console.log("WebSocket connected!");
+    window.electronAPI.debug("WebSocket connected!");
     if (path) {
       setPath(path);
     } else {
@@ -180,7 +181,6 @@ const setUpWebSocket = () => {
 
   ws.onmessage = async ev => {
     const data = JSON.parse(ev.data);
-    console.log(data.command);
     if (data.command === "active_sessions") {
       activeSessionsMutex.runExclusive(async () => {
         lastActiveTracksMessage = data;

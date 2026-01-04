@@ -6,7 +6,15 @@ import path from "node:path";
 import { ChildProcess, execSync } from 'node:child_process';
 import gitUrlParse from 'git-url-parse';
 
-const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined) => {
+const error = (message: string) => {
+  vscode.window.showErrorMessage("Proximity Chat: " + message);
+};
+
+const info = (message: string) => {
+  vscode.window.showInformationMessage("Proximity Chat: " + message);
+};
+
+const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
   if (editor === undefined || editor === null) {
     // TODO: handle disconnections with a delay
     return;
@@ -17,14 +25,13 @@ const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | und
     return;
   }
 
-  const data = getRepoAttributes(editor.document.uri.path);
+  const data = getRepoAttributes(editor.document.uri.path, debug);
 
-  if (data) {
+  if (typeof data === "object" && data !== null) {
     const normalizedPath = normalizePath(editor.document.uri.path);
     if (!normalizedPath.startsWith(data.basePath)) {
-      // channel.appendLine("base path does not start with normalized path; bailing out");
+      error(`Unable to update path. Path (${normalizePath}) should start with repo base path ${data.basePath}, but it doesn't.`);
     } else {
-      // Normalize to posix path for server
       const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
       electron.send({
         command: "set_path",
@@ -35,16 +42,17 @@ const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | und
   }
 };
 
-const getRepoAttributes = (pathStr: string) => {
+const ERR_NOT_IN_GIT_REPO = "ERR_NOT_IN_GIT_REPO";
+const ERR_NO_REMOTES = "ERR_NO_REMOTES";
+
+const getRepoAttributes = (pathStr: string, debug: (message: string) => void) => {
   const { dir } = path.parse(pathStr);
   let remotes: string;
   try {
     remotes = execSync("git remote", { cwd: dir }).toString().trim();
   } catch {
-    // channel.appendLine("Failed to list git remotes");
-    return null;
+    return ERR_NOT_IN_GIT_REPO;
   }
-  // channel.appendLine("Remotes: " + remotes);
   // TODO: allow remote to be configured by workspace setting or something
   let remote: string;
   if (remotes.includes("origin")) {
@@ -52,22 +60,19 @@ const getRepoAttributes = (pathStr: string) => {
   } else if (remotes.length > 0) {
     remote = remotes.split("\n")[0].trim();
   } else {
-    return null;
+    return ERR_NO_REMOTES;
   }
-
-  // channel.appendLine("Selected remote: " + remote);
 
   let remotePath: string;
   try {
     remotePath = execSync(`git remote get-url ${remote}`, { cwd: dir }).toString().trim();
   } catch {
+    error(`Failed to get Git remote path for remote "${remote}".`);
     return null;
   }
-  // channel.appendLine("Remote path: " + remotePath);
   const remoteParsed = gitUrlParse(remotePath.toLowerCase());
-  // channel.appendLine("Parsed remote: " + JSON.stringify(remoteParsed));
   if (!remoteParsed.resource || !remoteParsed.pathname) {
-    // channel.appendLine("Failed to parse remote");
+    error("Failed to parse Git remote path: " + remotePath);
     return null;
   }
 
@@ -75,10 +80,9 @@ const getRepoAttributes = (pathStr: string) => {
   try {
     basePath = execSync(`git rev-parse --show-toplevel`, { cwd: dir }).toString().trim();
   } catch {
-    // channel.appendLine("Failed to get base path");
+    error("Failed to get Git repo top-level path in " + dir);
     return null;
   }
-  // channel.appendLine("Base path: " + basePath);
 
   return {
     remote: remoteParsed.resource + remoteParsed.pathname,
@@ -88,29 +92,23 @@ const getRepoAttributes = (pathStr: string) => {
 
 const normalizePath = (pathStr: string) => {
   return path.normalize(pathStr).toLowerCase();
-}
+};
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
   // Use the console to output diagnostic information (console.log) and errors (console.error)
   // This line of code will only be executed once when your extension is activated
-  console.log('Congratulations, your extension "proximity-chat" is now active!');
   const channel = vscode.window.createOutputChannel("Proximity Chat", { log: true });
-	channel.appendLine("Proximity chat initializing");
+  const debug = (message: string) => {
+    channel.appendLine("[Extension]" + message);
+  };
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
   const disposable = vscode.commands.registerCommand('proximity-chat.helloWorld', async () => {
-    // The code you place here will be executed every time your command is executed
-    // Display a message box to the user
-    // vscode.window.showInformationMessage('Hello World from Proximity Chat!');
-
     try {
       execSync("git --version");
     } catch (e) {
-      vscode.window.showErrorMessage(
+      error(
         "Git is not installed, which is required for Proximity Chat to connect you " + 
         "to people who are in the same repository as you. Please install " +
         "it, ensure it is in your path, and try again."
@@ -133,30 +131,53 @@ export function activate(context: vscode.ExtensionContext) {
       'electron.js'
     );
 
-    // Spawn with starting remote, if any
-    const args: string[] = [];
-    // if (remote) {
-    //   args.push(Buffer.from(remote, "utf8").toString("base64"));
-    // }
-    const electron = await electronManager.start(electronMainFile, args);
-    if (!electron) throw new Error('ensure electron installation');
+    const electron = await electronManager.start(electronMainFile, []);
+    if (!electron) {
+      error("Failed to start voice capture process");
+      return;
+    }
 
-    vscode.window.onDidChangeActiveTextEditor(((editor) => {
-      sendPath(electron, editor);
+    if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
+      info("Chat started! Open a file to begin.");
+    } else {
+      const checkRemote = getRepoAttributes(vscode.window.activeTextEditor.document.uri.path, debug);
+      if (checkRemote === ERR_NOT_IN_GIT_REPO) {
+        info("Cannot connect because this file is not in a Git repository. Set up a repository with a remote (e.g. GitHub) to use Proximity Chat with your current file.");
+      } else if (checkRemote === ERR_NO_REMOTES) {
+        info("Cannot connect because the Git repository this file is in has no remotes (not on GitHub, etc.). Set this up to use Proximity Chat with your current file.");
+      } else if (checkRemote !== null) {
+        info("Chat started!");
+      }
+    }
+
+    const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(((editor) => {
+      sendPath(electron, editor, debug);
 	  }));
 
     electron.on('exit', () => {
-      // Handle spawn error
+      error("Voice process exited; Proximity Chat is no longer active.");
+      activeEditorListener.dispose();
     });
-
-    // communicate with electron main process via ipc
-    // in electron-main.js use process.send() and process.on('message')
-    electron.send('ping');
 
     electron.once('message', (message) => {
       if (typeof message !== "object" || !message || !("command" in message)) return;
       if (message.command === "request_path") {
-        sendPath(electron, vscode.window.activeTextEditor);
+        sendPath(electron, vscode.window.activeTextEditor, debug);
+      }
+      if (message.command === "debug") {
+        if ("message" in message) {
+          channel.appendLine("[Electron]" + message.message);
+        }
+      }
+      if (message.command === "info") {
+        if ("message" in message) {
+          info("Proximity Chat: " + message.message as string);
+        }
+      }
+      if (message.command === "error") {
+        if ("message" in message) {
+          error("Proximity Chat: " + message.message as string);
+        }
       }
     });
   });
