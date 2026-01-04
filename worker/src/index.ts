@@ -261,8 +261,20 @@ export class WebSocketServer extends DurableObject {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
-    // If the client closes the connection, the runtime will invoke the webSocketClose() handler.
-    this.sessions.delete(ws);
+    if (this.sessions.has(ws)) {
+      const trackId = this.sessions.get(ws)!.trackId;
+      if (trackId) {
+        for (const [ws, _] of this.sessions) {
+          ws.send(JSON.stringify({
+            command: "track_closed",
+            trackId
+          }));
+        }
+      }
+
+      this.sessions.delete(ws);
+    }
+
     ws.close(code, 'Durable Object is closing WebSocket');
   }
 }

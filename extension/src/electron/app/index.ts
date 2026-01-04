@@ -143,14 +143,12 @@ window.electronAPI.requestPath();
 const activeSessionsMutex = new Mutex();
 
 const adjustVolumeOfExistingTracks = () => {
-  if (!path) {
+  if (!path || !lastActiveTracksMessage) {
     for (const trackId in activeTracks) {
       activeTracks[trackId].volume = 0;
     }
     return;
   }
-
-  if (!lastActiveTracksMessage) return;
 
   for (const session of lastActiveTracksMessage.sessions) {
     if (!(session.trackId in activeTracks)) continue;
@@ -192,7 +190,7 @@ const setUpWebSocket = () => {
         for (const session of data.sessions) {
           if (sessionId === session.id) continue;
           if (session.trackId in activeTracks) continue;
-          
+
           tracksToConnect.push({
             location: "remote",
             sessionId: session.id,
@@ -233,6 +231,12 @@ const setUpWebSocket = () => {
           });
         }
       });
+    } else if (data.command === 'track_closed') {
+      if (data.trackId in activeTracks) {
+        activeTracks[data.trackId].pause();
+        activeTracks[data.trackId].remove();
+        delete activeTracks[data.trackId];
+      }
     }
   };
 };
