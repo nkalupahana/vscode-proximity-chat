@@ -104,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
     channel.appendLine("[Extension]" + message);
   };
 
-  const disposable = vscode.commands.registerCommand('proximity-chat.helloWorld', async () => {
+  const disposable = vscode.commands.registerCommand('proximity-chat.start', async () => {
     try {
       execSync("git --version");
     } catch (e) {
@@ -137,6 +137,11 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    vscode.commands.executeCommand('setContext', 'proximity-chat.running', true);
+    const stopCommand = vscode.commands.registerCommand('proximity-chat.stop', async () => {
+      electron.kill();
+    });
+
     if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
       info("Chat started! Open a file to begin.");
     } else {
@@ -155,8 +160,10 @@ export function activate(context: vscode.ExtensionContext) {
 	  }));
 
     electron.on('exit', () => {
-      error("Voice process exited; Proximity Chat is no longer active.");
+      info("Voice process exited; Proximity Chat is no longer active.");
+      vscode.commands.executeCommand('setContext', 'proximity-chat.running', false);
       activeEditorListener.dispose();
+      stopCommand.dispose();
     });
 
     electron.on('message', (message) => {

@@ -107,7 +107,6 @@ const renegotiate = async (request: Request, env: Env) => {
 
   // TODO: handle errors
   if (!response.ok) {}
-  console.log("renegotiate", await response.json())
   return new Response();
 }
 

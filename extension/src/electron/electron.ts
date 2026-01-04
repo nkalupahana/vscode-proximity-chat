@@ -29,6 +29,7 @@ const createWindow = () => {
     });
   });
 
+  // Pass messages from renderer to extension transparently
   ipcMain.on('debug', (_, message) => {
     process.send?.({
       command: "debug",
@@ -52,15 +53,9 @@ const createWindow = () => {
 
   win.loadFile(path.join("views", "index.html"));
 
-
   // TODO: hide this thing from the user
   // win.hide();
 };
-
-// ipcMain.on("set_path", (event, pathValue) => {
-//   const webContents = event.sender;
-//   webContents.send("set_path", pathValue);
-// });
 
 app.whenReady().then(() => {
   createWindow();

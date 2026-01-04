@@ -14,8 +14,14 @@
   "contributes": {
     "commands": [
       {
-        "command": "proximity-chat.helloWorld",
-        "title": "Hello World"
+        "command": "proximity-chat.start",
+        "title": "Proximity Chat: Start",
+        "enablement": "!proximity-chat.running"
+      },
+      {
+        "command": "proximity-chat.stop",
+        "title": "Proximity Chat: Stop",
+        "enablement": "proximity-chat.running"
       }
     ]
   },
