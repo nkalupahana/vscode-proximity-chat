@@ -159,8 +159,9 @@ export function activate(context: vscode.ExtensionContext) {
       activeEditorListener.dispose();
     });
 
-    electron.once('message', (message) => {
+    electron.on('message', (message) => {
       if (typeof message !== "object" || !message || !("command" in message)) return;
+      debug("Received command: " + message.command);
       if (message.command === "request_path") {
         sendPath(electron, vscode.window.activeTextEditor, debug);
       }

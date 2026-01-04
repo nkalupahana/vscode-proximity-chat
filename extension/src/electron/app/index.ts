@@ -120,6 +120,7 @@ const setPath = (path: string) => {
 };
 
 window.electronAPI.onSetPath((newPath) => {
+  window.electronAPI.debug("Received path: " + JSON.stringify(newPath));
   if (remote !== newPath.remote) {
     remote = newPath.remote;
     ws?.close();
@@ -148,6 +149,8 @@ const adjustVolumeOfExistingTracks = () => {
     }
     return;
   }
+
+  if (!lastActiveTracksMessage) return;
 
   for (const session of lastActiveTracksMessage.sessions) {
     if (!(session.trackId in activeTracks)) continue;
