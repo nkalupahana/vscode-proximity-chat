@@ -5,6 +5,8 @@ import { ChildProcess, execSync } from 'node:child_process';
 import gitUrlParse from 'git-url-parse';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 
+const STATUS_BAR_WARNING_BACKGROUND = new vscode.ThemeColor("statusBarItem.warningBackground");
+
 const error = (message: string) => {
   vscode.window.showErrorMessage("Proximity Chat: " + message);
 };
@@ -145,8 +147,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', false);
     muteIcon.command = "proximity-chat.mute";
     muteIcon.text = "$(mic-filled)";
+    muteIcon.backgroundColor = undefined;
     deafenIcon.command = "proximity-chat.deafen";
     deafenIcon.text = "$(unmute)";
+    deafenIcon.backgroundColor = undefined;
     muteIcon.show();
     deafenIcon.show();
 
@@ -229,16 +233,20 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.executeCommand('setContext', 'proximity-chat.muted', message.muted);
         if (message.muted) {
           muteIcon.text = "$(mic) Muted";
+          muteIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
         } else {
           muteIcon.text = "$(mic-filled)";
-         }
+          muteIcon.backgroundColor = undefined;
+        }
        }
        if (message.command === "deafen_status") {
         vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', message.deafened);
         if (message.deafened) {
           deafenIcon.text = "$(mute) Deafened";
+          deafenIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
         } else {
           deafenIcon.text = "$(unmute)";
+          deafenIcon.backgroundColor = undefined;
          }
        }
     });
