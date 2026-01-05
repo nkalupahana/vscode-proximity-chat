@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from "node:path";
+import { ExtensionOutgoingMessage, extensionOutgoingMessageSchema } from '../ipc';
 
 // Menu.setApplicationMenu(null);
 // const lockAcquired = app.requestSingleInstanceLock();
@@ -11,46 +12,38 @@ import path from "node:path";
 
 app.dock?.hide();
 
+const debug = (message: string) => {
+  process.send?.({ command: "debug", message });
+};
+
 const createWindow = () => {
   const win = new BrowserWindow({
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, "views", "preload.js"),
       backgroundThrottling: false,
     }
   });
 
-  process.on('message', (message) => {
-    if (typeof message !== "object" || !message || !("command" in message)) return;
-    win.webContents.send(message.command as string, message);
-  });
+  process.on('message', (data) => {
+    if (typeof data !== "object" || !data) return;
 
-  ipcMain.on('request_path', () => {
-    process.send?.({
-      command: "request_path"
-    });
+    let message: ExtensionOutgoingMessage;
+    try {
+      message = extensionOutgoingMessageSchema.parse(data);
+    } catch (e: any) {
+      debug("Failed to parse message: " + JSON.stringify(data));
+      debug(e.message);
+      return;
+    }
+
+    win.webContents.send(message.command, message);
   });
 
   // Pass messages from renderer to extension transparently
-  ipcMain.on('debug', (_, message) => {
-    process.send?.({
-      command: "debug",
-      message
-    });
-  });
-
-  ipcMain.on('info', (_, message) => {
-    process.send?.({
-      command: "info",
-      message
-    });
-  });
   
-  ipcMain.on('error', (_, message) => {
-    process.send?.({
-      command: "error",
-      message
-    });
+  ipcMain.on('message', (_, message) => {
+    process.send?.(message);
   });
 
   win.loadFile(path.join("views", "index.html"));

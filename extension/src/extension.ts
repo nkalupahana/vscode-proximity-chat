@@ -3,6 +3,7 @@ import { ElectronManager } from 'vscode-electron-manager';
 import path from "node:path";
 import { ChildProcess, execSync } from 'node:child_process';
 import gitUrlParse from 'git-url-parse';
+import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 
 const error = (message: string) => {
   vscode.window.showErrorMessage("Proximity Chat: " + message);
@@ -176,8 +177,17 @@ export function activate(context: vscode.ExtensionContext) {
       deafenIcon.hide();
     });
 
-    electron.on('message', (message) => {
-      if (typeof message !== "object" || !message || !("command" in message)) return;
+    electron.on('message', (data) => {
+      if (typeof data !== "object" || !data) return;
+      let message: ExtensionIncomingMessage;
+      try {
+        message = extensionIncomingMessageSchema.parse(data);
+      } catch (e: any) {
+        debug("Failed to parse message: " + JSON.stringify(data));
+        debug(e?.message);
+        return;
+      }
+
       debug("Received command: " + message.command);
       if (message.command === "request_path") {
         sendPath(electron, vscode.window.activeTextEditor, debug);

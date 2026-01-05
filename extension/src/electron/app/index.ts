@@ -1,12 +1,14 @@
 import { Mutex } from "async-mutex";
 import { getPathDistance } from "./utils";
+import { type SetPathMessage } from "../../ipc";
+import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
 
 const BASE_URL = "https://prox.nisa.la";
 declare global {
   interface Window {
     electronAPI: {
       requestPath: () => void;
-      onSetPath: (callback: (data: { path: string, remote: string }) => void) => void;
+      onSetPath: (callback: (data: SetPathMessage) => void) => void;
       debug: (message: string) => void;
       info: (message: string) => void;
       error: (message: string) => void;
@@ -17,7 +19,7 @@ declare global {
 let ws: WebSocket | null = null;
 let remote: string | null = null;
 let path: string | null = null;
-let lastActiveTracksMessage: any = null;
+let lastActiveTracksMessage: ActiveTracksMessage | null = null;
 let pendingStreamIdToTrackId: Record<string, string> = {};
 let activeTracks: Record<string, HTMLAudioElement> = {};
 
@@ -181,13 +183,22 @@ const setUpWebSocket = () => {
   };
 
   ws.onmessage = async ev => {
-    const data = JSON.parse(ev.data);
-    if (data.command === "active_sessions") {
+    let message: WebSocketMessage;
+    try {
+      const data = JSON.parse(ev.data);
+      message = websocketMessageSchema.parse(data);
+    } catch (e: any) {
+      window.electronAPI.debug("Failed to parse websocket message: " + ev.data);
+      window.electronAPI.debug(e.message);
+      return;
+    }
+
+    if (message.command === "active_sessions") {
       activeSessionsMutex.runExclusive(async () => {
-        lastActiveTracksMessage = data;
+        lastActiveTracksMessage = message;
         adjustVolumeOfExistingTracks();
         const tracksToConnect = [];
-        for (const session of data.sessions) {
+        for (const session of message.sessions) {
           if (sessionId === session.id) continue;
           if (session.trackId in activeTracks) continue;
 
@@ -231,11 +242,11 @@ const setUpWebSocket = () => {
           });
         }
       });
-    } else if (data.command === 'track_closed') {
-      if (data.trackId in activeTracks) {
-        activeTracks[data.trackId].pause();
-        activeTracks[data.trackId].remove();
-        delete activeTracks[data.trackId];
+    } else if (message.command === 'track_closed') {
+      if (message.trackId in activeTracks) {
+        activeTracks[message.trackId].pause();
+        activeTracks[message.trackId].remove();
+        delete activeTracks[message.trackId];
       }
     }
   };
