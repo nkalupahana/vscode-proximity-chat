@@ -106,10 +106,6 @@ export function activate(context: vscode.ExtensionContext) {
   const deafenIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   context.subscriptions.push(muteIcon);
   context.subscriptions.push(deafenIcon);
-  muteIcon.command = "proximity-chat.mute";
-  muteIcon.text = "$(mic-filled)";
-  deafenIcon.command = "proximity-chat.deafen";
-  deafenIcon.text = "$(unmute)";
 
   const disposable = vscode.commands.registerCommand('proximity-chat.start', async () => {
     try {
@@ -145,10 +141,27 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     vscode.commands.executeCommand('setContext', 'proximity-chat.running', true);
+    vscode.commands.executeCommand('setContext', 'proximity-chat.muted', false);
+    vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', false);
+    muteIcon.command = "proximity-chat.mute";
+    muteIcon.text = "$(mic-filled)";
+    deafenIcon.command = "proximity-chat.deafen";
+    deafenIcon.text = "$(unmute)";
     muteIcon.show();
     deafenIcon.show();
+
     const stopCommand = vscode.commands.registerCommand('proximity-chat.stop', async () => {
       electron.kill();
+    });
+    const muteCommand = vscode.commands.registerCommand('proximity-chat.mute', async () => {
+      electron.send({
+        command: "mute"
+      });
+    });
+    const deafenCommand = vscode.commands.registerCommand('proximity-chat.deafen', async () => {
+      electron.send({
+        command: "deafen"
+      });
     });
 
     if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
@@ -175,6 +188,8 @@ export function activate(context: vscode.ExtensionContext) {
       stopCommand.dispose();
       muteIcon.hide();
       deafenIcon.hide();
+      muteCommand.dispose();
+      deafenCommand.dispose();
     });
 
     electron.on('message', (data) => {
@@ -193,20 +208,30 @@ export function activate(context: vscode.ExtensionContext) {
         sendPath(electron, vscode.window.activeTextEditor, debug);
       }
       if (message.command === "debug") {
-        if ("message" in message) {
-          channel.appendLine("[Electron]" + message.message);
-        }
+        channel.appendLine("[Electron]" + message.message);
       }
       if (message.command === "info") {
-        if ("message" in message) {
-          info("Proximity Chat: " + message.message as string);
-        }
+        info("Proximity Chat: " + message.message as string);
       }
       if (message.command === "error") {
-        if ("message" in message) {
-          error("Proximity Chat: " + message.message as string);
-        }
+        error("Proximity Chat: " + message.message as string);
       }
+      if (message.command === "mute_status") {
+        vscode.commands.executeCommand('setContext', 'proximity-chat.muted', message.muted);
+        if (message.muted) {
+          muteIcon.text = "$(mic) Muted";
+        } else {
+          muteIcon.text = "$(mic-filled)";
+         }
+       }
+       if (message.command === "deafen_status") {
+        vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', message.deafened);
+        if (message.deafened) {
+          deafenIcon.text = "$(mute) Deafened";
+        } else {
+          deafenIcon.text = "$(unmute)";
+         }
+       }
     });
   });
 
