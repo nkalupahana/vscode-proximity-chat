@@ -1,7 +1,7 @@
 import { Mutex } from "async-mutex";
 import { getPathDistance } from "./utils";
 
-const BASE_URL = "http://localhost:8787";
+const BASE_URL = "https://prox.nisa.la";
 declare global {
   interface Window {
     electronAPI: {

@@ -13,8 +13,10 @@ app.dock?.hide();
 
 const createWindow = () => {
   const win = new BrowserWindow({
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "views", "preload.js"),
+      backgroundThrottling: false,
     }
   });
 
@@ -52,9 +54,6 @@ const createWindow = () => {
   });
 
   win.loadFile(path.join("views", "index.html"));
-
-  // TODO: hide this thing from the user
-  // win.hide();
 };
 
 app.whenReady().then(() => {

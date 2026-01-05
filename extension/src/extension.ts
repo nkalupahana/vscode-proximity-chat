@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { ElectronManager } from 'vscode-electron-manager';
 import path from "node:path";
@@ -103,6 +101,14 @@ export function activate(context: vscode.ExtensionContext) {
   const debug = (message: string) => {
     channel.appendLine("[Extension]" + message);
   };
+  const muteIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  const deafenIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  context.subscriptions.push(muteIcon);
+  context.subscriptions.push(deafenIcon);
+  muteIcon.command = "proximity-chat.mute";
+  muteIcon.text = "$(mic-filled)";
+  deafenIcon.command = "proximity-chat.deafen";
+  deafenIcon.text = "$(unmute)";
 
   const disposable = vscode.commands.registerCommand('proximity-chat.start', async () => {
     try {
@@ -138,6 +144,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     vscode.commands.executeCommand('setContext', 'proximity-chat.running', true);
+    muteIcon.show();
+    deafenIcon.show();
     const stopCommand = vscode.commands.registerCommand('proximity-chat.stop', async () => {
       electron.kill();
     });
@@ -164,6 +172,8 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.commands.executeCommand('setContext', 'proximity-chat.running', false);
       activeEditorListener.dispose();
       stopCommand.dispose();
+      muteIcon.hide();
+      deafenIcon.hide();
     });
 
     electron.on('message', (message) => {

@@ -9,6 +9,11 @@
   "categories": [
     "Other"
   ],
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkalupahana/vscode-proximity-chat.git"
+  },
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
