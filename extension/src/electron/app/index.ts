@@ -7,8 +7,10 @@ const BASE_URL = "https://prox.nisa.la";
 declare global {
   interface Window {
     electronAPI: {
-      requestPath: () => void;
       onSetPath: (callback: (data: SetPathMessage) => void) => void;
+      onMute: (callback: () => boolean) => void;
+      onDeafen: (callback: () => boolean) => void;
+      requestPath: () => void;
       debug: (message: string) => void;
       info: (message: string) => void;
       error: (message: string) => void;
@@ -22,6 +24,35 @@ let path: string | null = null;
 let lastActiveTracksMessage: ActiveTracksMessage | null = null;
 let pendingStreamIdToTrackId: Record<string, string> = {};
 let activeTracks: Record<string, HTMLAudioElement> = {};
+let deafened = false;
+
+const adjustVolumeOfExistingTracks = () => {
+  if (!path || !lastActiveTracksMessage || deafened) {
+    for (const trackId in activeTracks) {
+      activeTracks[trackId].volume = 0;
+    }
+    return;
+  }
+
+  for (const session of lastActiveTracksMessage.sessions) {
+    if (!(session.trackId in activeTracks)) continue;
+    const dist = getPathDistance(session.path, path);
+    const DISTANCE_TO_VOLUME = {
+      0: 1,
+      1: 0.6,
+      2: 0.1
+    } as Record<number, number>;
+    const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
+    activeTracks[session.trackId].volume = volume;
+  }
+};
+
+window.electronAPI.onDeafen(() => {
+  deafened = !deafened;
+  adjustVolumeOfExistingTracks();
+
+  return deafened;
+});
 
 // Set up connection and session
 const pc = new RTCPeerConnection({
@@ -39,6 +70,12 @@ const localStream = await navigator.mediaDevices.getUserMedia({
 
 // TODO: handle different tracks?
 const track = localStream.getTracks()[0];
+window.electronAPI.onMute(() => {
+  track.enabled = !track.enabled;
+
+  const muted = !track.enabled;
+  return muted;
+});
 const transceiver = pc.addTransceiver(track, {
   direction: 'sendonly'
 });
@@ -143,27 +180,6 @@ window.electronAPI.onSetPath((newPath) => {
 window.electronAPI.requestPath();
 
 const activeSessionsMutex = new Mutex();
-
-const adjustVolumeOfExistingTracks = () => {
-  if (!path || !lastActiveTracksMessage) {
-    for (const trackId in activeTracks) {
-      activeTracks[trackId].volume = 0;
-    }
-    return;
-  }
-
-  for (const session of lastActiveTracksMessage.sessions) {
-    if (!(session.trackId in activeTracks)) continue;
-    const dist = getPathDistance(session.path, path);
-    const DISTANCE_TO_VOLUME = {
-      0: 1,
-      1: 0.6,
-      2: 0.1
-    } as Record<number, number>;
-    const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
-    activeTracks[session.trackId].volume = volume;
-  }
-};
 
 const setUpWebSocket = () => {
   if (!sessionId || !trackData.trackName || !remote) return;
