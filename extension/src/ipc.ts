@@ -42,8 +42,8 @@ export type ExtensionIncomingMessage = z.infer<typeof extensionIncomingMessageSc
 
 const setPathMessage = z.object({
   command: z.literal("set_path"),
-  path: z.string(),
-  remote: z.string()
+  path: z.string().nullable(),
+  remote: z.string().nullable()
 });
 
 export type SetPathMessage = z.infer<typeof setPathMessage>;

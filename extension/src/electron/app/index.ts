@@ -168,11 +168,13 @@ window.electronAPI.onSetPath((newPath) => {
 
   path = newPath.path;
 
-  if (ws === null) {
-    setUpWebSocket();
+  if (path !== null) {
+    if (ws === null) {
+      setUpWebSocket();
+    }
+    setPath(path);
+    adjustVolumeOfExistingTracks();
   }
-  setPath(path);
-  adjustVolumeOfExistingTracks();
 });
 
 // We're ready to go! Request a path from the extension to 

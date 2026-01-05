@@ -6,6 +6,7 @@ import gitUrlParse from 'git-url-parse';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 
 const STATUS_BAR_WARNING_BACKGROUND = new vscode.ThemeColor("statusBarItem.warningBackground");
+let lastSentFsPath: string | null = null;
 
 const error = (message: string) => {
   vscode.window.showErrorMessage("Proximity Chat: " + message);
@@ -15,14 +16,31 @@ const info = (message: string) => {
   vscode.window.showInformationMessage("Proximity Chat: " + message);
 };
 
-const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
-  if (editor === undefined || editor === null) {
-    // TODO: handle disconnections with a delay
-    return;
-  }
+const sendPath = (electron: ChildProcess, fsPath: string | null, path: string | null, remote: string | null) => {
+  lastSentFsPath = fsPath;
+  electron.send({
+    command: "set_path",
+    path: path,
+    remote: remote
+  });
+};
 
-  if (editor.document.uri.scheme !== "file") {
-    // TODO: handle non-file schemes gracefully (compare last value with open windows)
+const lastSentPathActive = () => {
+  let found = false;
+  vscode.window.visibleTextEditors.forEach(editor => {
+    if (editor.document.uri.fsPath === lastSentFsPath) {
+      found = true;
+    }
+  });
+
+  return found;
+}
+
+const trySendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
+  if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
+    if (!lastSentPathActive()) {
+      sendPath(electron, null, null, null);
+    }
     return;
   }
 
@@ -34,11 +52,7 @@ const sendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | und
       error(`Unable to update path. Path (${normalizePath}) should start with repo base path ${data.basePath}, but it doesn't.`);
     } else {
       const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
-      electron.send({
-        command: "set_path",
-        path: serverPath,
-        remote: data.remote
-      });
+      sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote);
     }
   }
 };
@@ -189,7 +203,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(((editor) => {
-      sendPath(electron, editor, debug);
+      trySendPath(electron, editor, debug);
 	  }));
 
     electron.on('exit', () => {
@@ -218,7 +232,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       debug("Received command: " + message.command);
       if (message.command === "request_path") {
-        sendPath(electron, vscode.window.activeTextEditor, debug);
+        trySendPath(electron, vscode.window.activeTextEditor, debug);
       }
       if (message.command === "debug") {
         channel.appendLine("[Electron]" + message.message);
