@@ -153,16 +153,23 @@ export function activate(context: vscode.ExtensionContext) {
     const stopCommand = vscode.commands.registerCommand('proximity-chat.stop', async () => {
       electron.kill();
     });
-    const muteCommand = vscode.commands.registerCommand('proximity-chat.mute', async () => {
+    const sendMute = () => {
       electron.send({
         command: "mute"
       });
-    });
-    const deafenCommand = vscode.commands.registerCommand('proximity-chat.deafen', async () => {
+    };
+    const sendDeafen = () => {
       electron.send({
         command: "deafen"
       });
-    });
+    };
+
+    // Defining each command twice is necessary because
+    // package > contributes > commands does not allow duplicate commands
+    const muteCommand = vscode.commands.registerCommand('proximity-chat.mute', sendMute);
+    const unmuteCommand = vscode.commands.registerCommand('proximity-chat.unmute', sendMute);
+    const deafenCommand = vscode.commands.registerCommand('proximity-chat.deafen', sendDeafen);
+    const undeafenCommand = vscode.commands.registerCommand('proximity-chat.undeafen', sendDeafen);
 
     if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
       info("Chat started! Open a file to begin.");
@@ -190,6 +197,8 @@ export function activate(context: vscode.ExtensionContext) {
       deafenIcon.hide();
       muteCommand.dispose();
       deafenCommand.dispose();
+      unmuteCommand.dispose();
+      undeafenCommand.dispose();
     });
 
     electron.on('message', (data) => {

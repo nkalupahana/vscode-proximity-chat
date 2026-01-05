@@ -27,6 +27,26 @@
         "command": "proximity-chat.stop",
         "title": "Proximity Chat: Stop",
         "enablement": "proximity-chat.running"
+      },
+      {
+        "command": "proximity-chat.mute",
+        "title": "Proximity Chat: Mute",
+        "enablement": "proximity-chat.running && !proximity-chat.muted"
+      },
+      {
+        "command": "proximity-chat.unmute",
+        "title": "Proximity Chat: Unmute",
+        "enablement": "proximity-chat.running && proximity-chat.muted"
+      },
+      {
+        "command": "proximity-chat.undeafen",
+        "title": "Proximity Chat: Deafen",
+        "enablement": "proximity-chat.running && !proximity-chat.deafened"
+      },
+      {
+        "command": "proximity-chat.deafen",
+        "title": "Proximity Chat: Undeafen",
+        "enablement": "proximity-chat.running && proximity-chat.deafened"
       }
     ]
   },
