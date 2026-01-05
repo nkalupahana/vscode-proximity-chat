@@ -61,6 +61,7 @@ const ERR_NOT_IN_GIT_REPO = "ERR_NOT_IN_GIT_REPO";
 const ERR_NO_REMOTES = "ERR_NO_REMOTES";
 
 const getRepoAttributes = (pathStr: string, debug: (message: string) => void) => {
+  const fallbackRemoteName: string = vscode.workspace.getConfiguration().get("proximityChat.fallbackRemoteName") ?? "origin";
   const { dir } = path.parse(pathStr);
   let remotes: string;
   try {
@@ -70,8 +71,8 @@ const getRepoAttributes = (pathStr: string, debug: (message: string) => void) =>
   }
   // TODO: allow remote to be configured by workspace setting or something
   let remote: string;
-  if (remotes.includes("origin")) {
-    remote = "origin";
+  if (remotes.includes(fallbackRemoteName)) {
+    remote = fallbackRemoteName;
   } else if (remotes.length > 0) {
     remote = remotes.split("\n")[0].trim();
   } else {

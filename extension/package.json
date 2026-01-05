@@ -17,6 +17,16 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Proximity Chat",
+      "properties": {
+        "proximityChat.fallbackRemoteName": {
+          "type": "string",
+          "default": "origin",
+          "description": "Proximity chat uses your Git remote's URL in order to connect you with people who are working in the same repository. If there are multiple remotes, 'origin' is selected, and if 'origin' is not present, one is chosen randomly. To use a specific remote name instead of origin in these cases, configure a remote name here."
+        }
+      }
+    },
     "commands": [
       {
         "command": "proximity-chat.start",
