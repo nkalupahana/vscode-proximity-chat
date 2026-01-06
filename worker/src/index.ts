@@ -166,26 +166,19 @@ export class WebSocketServer extends DurableObject {
     super(ctx, env);
     this.sessions = new Map();
 
-    // As part of constructing the Durable Object,
-    // we wake up any hibernating WebSockets and
-    // place them back in the `sessions` map.
-
-    // Get all WebSocket connections from the DO
+    // Wake up hibernating WebSockets
     this.ctx.getWebSockets().forEach((ws) => {
       let attachment = ws.deserializeAttachment();
       if (attachment) {
-        // If we previously attached state to our WebSocket,
-        // let's add it to `sessions` map to restore the state of the connection.
         this.sessions.set(ws, { ...attachment });
       }
     });
 
-    // Sets an application level auto response that does not wake hibernated WebSockets.
+    // Auto response to pings (no wake)
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
   async fetch(request: Request): Promise<Response> {
-    // Creates two ends of a WebSocket connection.
     const webSocketPair = new WebSocketPair();
     const [client, server] = Object.values(webSocketPair);
     const url = new URL(request.url);
@@ -198,26 +191,11 @@ export class WebSocketServer extends DurableObject {
       return new Response("Missing trackId", { status: 400 });
     }
 
-    // Calling `acceptWebSocket()` informs the runtime that this WebSocket is to begin terminating
-    // request within the Durable Object. It has the effect of "accepting" the connection,
-    // and allowing the WebSocket to send and receive messages.
-    // Unlike `ws.accept()`, `this.ctx.acceptWebSocket(ws)` informs the Workers Runtime that the WebSocket
-    // is "hibernatable", so the runtime does not need to pin this Durable Object to memory while
-    // the connection is open. During periods of inactivity, the Durable Object can be evicted
-    // from memory, but the WebSocket connection will remain open. If at some later point the
-    // WebSocket receives a message, the runtime will recreate the Durable Object
-    // (run the `constructor`) and deliver the message to the appropriate handler.
+    // Accept the WebSocket connection with hibernation
     this.ctx.acceptWebSocket(server);
 
-    // Generate a random UUID for the session.
-    const id = sessionId;
-
-    // Attach the session ID to the WebSocket connection and serialize it.
-    // This is necessary to restore the state of the connection when the Durable Object wakes up.
-    const data = { id, trackId };
+    const data = { id: sessionId, trackId };
     server.serializeAttachment(data);
-
-    // Add the WebSocket connection to the map of active sessions.
     this.sessions.set(server, data);
 
     return new Response(null, {
