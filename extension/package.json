@@ -17,6 +17,16 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "proximity-chat-participants",
+          "name": "Chat Participants",
+          "when": "proximity-chat.running",
+          "visibility": "visible"
+        }
+      ]
+    },
     "configuration": {
       "title": "Proximity Chat",
       "properties": {

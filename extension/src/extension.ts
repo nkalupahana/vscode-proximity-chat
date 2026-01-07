@@ -4,6 +4,7 @@ import path from "node:path";
 import { ChildProcess, execSync } from 'node:child_process';
 import gitUrlParse from 'git-url-parse';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
+import { ParticipantsTreeViewDataProvider } from './participantsTreeView';
 
 const STATUS_BAR_WARNING_BACKGROUND = new vscode.ThemeColor("statusBarItem.warningBackground");
 let lastSentFsPath: string | null = null;
@@ -38,6 +39,8 @@ const lastSentPathActive = () => {
 
 const trySendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
   if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
+    // TODO: if editor is undefined, we should wait a short amount of time to make sure it's actually gone before
+    // sending a null path and thus causing a disconnection. Repro by switching files via the sidebar.
     if (!lastSentPathActive()) {
       sendPath(electron, null, null, null);
     }
@@ -121,10 +124,15 @@ export function activate(context: vscode.ExtensionContext) {
   };
   const muteIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   const deafenIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+  const participantsTreeViewDataProvider = new ParticipantsTreeViewDataProvider();
+  vscode.window.registerTreeDataProvider("proximity-chat-participants", participantsTreeViewDataProvider);
   context.subscriptions.push(muteIcon);
   context.subscriptions.push(deafenIcon);
 
   const disposable = vscode.commands.registerCommand('proximity-chat.start', async () => {
+    // Reset state
+    participantsTreeViewDataProvider.setActiveSessions(null);
+
     try {
       execSync("git --version");
     } catch (e) {
@@ -264,6 +272,12 @@ export function activate(context: vscode.ExtensionContext) {
           deafenIcon.text = "$(unmute)";
           deafenIcon.backgroundColor = undefined;
          }
+       }
+       if (message.command === "active_sessions") {
+        participantsTreeViewDataProvider.setActiveSessions(message);
+       }
+       if (message.command === "reset_active_sessions") {
+        participantsTreeViewDataProvider.setActiveSessions(null);
        }
     });
   });

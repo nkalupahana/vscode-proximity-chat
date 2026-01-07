@@ -1,6 +1,6 @@
 import { Mutex } from "async-mutex";
 import { getPathDistance } from "./utils";
-import { type SetPathMessage } from "../../ipc";
+import { ActiveSessionsMessage, type SetPathMessage } from "../../ipc";
 import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
 
 const BASE_URL = "https://prox.nisa.la";
@@ -14,6 +14,8 @@ declare global {
       debug: (message: string) => void;
       info: (message: string) => void;
       error: (message: string) => never;
+      activeSessions: (message: Omit<ActiveSessionsMessage, "command">) => void;
+      resetActiveSessions: () => void;
     };
   }
 }
@@ -45,6 +47,26 @@ const adjustVolumeOfExistingTracks = () => {
     const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
     activeTracks[session.trackId].volume = volume;
   }
+};
+
+const updateExtensionActiveSessions = () => {
+  if (!lastActiveTracksMessage || !path || !sessionId) {
+    window.electronAPI.resetActiveSessions();
+    return;
+  }
+
+  window.electronAPI.activeSessions({
+    sessionId,
+    path,
+    sessions: lastActiveTracksMessage.sessions.map(session => {
+      return {
+        id: session.id,
+        path: session.path,
+        name: "Anonymous", // TODO: allow setting real names
+        distance: getPathDistance(session.path, path!)
+      };
+    })
+  });
 };
 
 window.electronAPI.onDeafen(() => {
@@ -185,6 +207,8 @@ window.electronAPI.onSetPath((newPath) => {
     }
     setPath(path);
     adjustVolumeOfExistingTracks();
+  } else {
+    window.electronAPI.resetActiveSessions();
   }
 });
 
@@ -225,6 +249,7 @@ const setUpWebSocket = () => {
     if (message.command === "active_sessions") {
       activeSessionsMutex.runExclusive(async () => {
         lastActiveTracksMessage = message;
+        updateExtensionActiveSessions();
         adjustVolumeOfExistingTracks();
         const tracksToConnect = [];
         for (const session of message.sessions) {

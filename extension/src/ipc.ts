@@ -29,13 +29,35 @@ const errorMessage = z.object({
   message: z.string()
 });
 
+const activeSessionsMessage = z.object({
+  command: z.literal("active_sessions"),
+  sessionId: z.string(),
+  path: z.string(),
+  sessions: z.array(
+    z.object({
+      id: z.string(),
+      path: z.string(),
+      name: z.string(),
+      distance: z.number()
+    })
+  )
+});
+
+export type ActiveSessionsMessage = z.infer<typeof activeSessionsMessage>;
+
+const resetActiveSessionsMessage = z.object({
+  command: z.literal("reset_active_sessions")
+});
+
 export const extensionIncomingMessageSchema = z.discriminatedUnion("command", [
   requestPathMessage,
   muteStatusMessage,
   deafenStatusMessage,
   debugMessage,
   infoMessage,
-  errorMessage
+  errorMessage,
+  activeSessionsMessage,
+  resetActiveSessionsMessage
 ]);
 
 export type ExtensionIncomingMessage = z.infer<typeof extensionIncomingMessageSchema>;

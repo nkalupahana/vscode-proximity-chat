@@ -120,8 +120,14 @@ const createWebSocket = async (request: Request, env: Env) => {
     });
   }
 
-  // TODO: replace with Git remote instead of foo
-  const stub = env.WEBSOCKET_SERVER.getByName("foo");
+  const url = new URL(request.url);
+  const remote = url.searchParams.get("remote");
+
+  if (!remote) {
+    return new Response("Missing remote", { status: 400 });
+  }
+
+  const stub = env.WEBSOCKET_SERVER.getByName(remote);
   return stub.fetch(request);
 }
 

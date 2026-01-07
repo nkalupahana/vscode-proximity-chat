@@ -41,7 +41,6 @@ const createWindow = () => {
   });
 
   // Pass messages from renderer to extension transparently
-  
   ipcMain.on('message', (_, message) => {
     process.send?.(message);
   });

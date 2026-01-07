@@ -12,8 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.send("message", { command: "deafen_status", deafened: callback() });
     });
   },
-  requestPath: () => ipcRenderer.send('message', { "command": "request_path"}),
+  requestPath: () => ipcRenderer.send('message', { "command": "request_path" }),
   debug: (message) => ipcRenderer.send('message', { "command": "debug", message }),
   info: (message) => ipcRenderer.send('message', { "command": "info", message }),
   error: (message) => ipcRenderer.send('message', { "command": "error", message }),
+  activeSessions: (message) => ipcRenderer.send('message', { "command": "active_sessions", ...message }),
+  resetActiveSessions: () => ipcRenderer.send('message', { "command": "reset_active_sessions" }),
 });
