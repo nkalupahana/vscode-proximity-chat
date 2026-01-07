@@ -12,7 +12,7 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
     this.data = data;
     this._onDidChangeTreeData.fire(null);
   }
-  
+
   getTreeItem(element: Participant): Participant | Thenable<Participant> {
     return element;
   }
@@ -20,7 +20,7 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
   getChildren(element?: Participant | undefined): ProviderResult<Participant[]> {
     if (element === undefined) {
       if (this.data === null) {
-        return [new Participant(NO_DATA_ID, "Open a file to see other participants here.", "", -1)];
+        return [new Participant(NO_DATA_ID, "Open a file to see other participants here. This may take a few seconds to load.", "", -1)];
       }
 
       const participants = this.data.sessions.map(session => {
@@ -28,7 +28,7 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
         return new Participant(
           session.id,
           me ? `You (${session.name})` : session.name,
-          session.path, 
+          session.path,
           me ? -1 : session.distance
         );
       });
