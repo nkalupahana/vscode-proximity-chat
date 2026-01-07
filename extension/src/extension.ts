@@ -5,6 +5,7 @@ import { ChildProcess, execSync } from 'node:child_process';
 import gitUrlParse from 'git-url-parse';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 import { ParticipantsTreeViewDataProvider } from './participantsTreeView';
+import { debounce } from "lodash";
 
 const STATUS_BAR_WARNING_BACKGROUND = new vscode.ThemeColor("statusBarItem.warningBackground");
 let lastSentFsPath: string | null = null;
@@ -35,12 +36,12 @@ const lastSentPathActive = () => {
   });
 
   return found;
-}
+};
 
-const trySendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
+// Debounced because when you switch from one file to another in VSCode via the sidebar,
+// it sends an undefined first, and then the new file.
+const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
   if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
-    // TODO: if editor is undefined, we should wait a short amount of time to make sure it's actually gone before
-    // sending a null path and thus causing a disconnection. Repro by switching files via the sidebar.
     if (!lastSentPathActive()) {
       sendPath(electron, null, null, null);
     }
@@ -58,7 +59,7 @@ const trySendPath = (electron: ChildProcess, editor: vscode.TextEditor | null | 
       sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote);
     }
   }
-};
+}, 100);
 
 const ERR_NOT_IN_GIT_REPO = "ERR_NOT_IN_GIT_REPO";
 const ERR_NO_REMOTES = "ERR_NO_REMOTES";
@@ -72,7 +73,7 @@ const getRepoAttributes = (pathStr: string, debug: (message: string) => void) =>
   } catch {
     return ERR_NOT_IN_GIT_REPO;
   }
-  // TODO: allow remote to be configured by workspace setting or something
+
   let remote: string;
   if (remotes.includes(fallbackRemoteName)) {
     remote = fallbackRemoteName;
