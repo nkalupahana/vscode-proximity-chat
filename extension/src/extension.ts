@@ -239,10 +239,11 @@ export function activate(context: vscode.ExtensionContext) {
         channel.appendLine("[Electron]" + message.message);
       }
       if (message.command === "info") {
-        info("Proximity Chat: " + message.message as string);
+        info(message.message as string);
       }
       if (message.command === "error") {
-        error("Proximity Chat: " + message.message as string);
+        error(message.message as string);
+        electron.kill(); // errors are fatal
       }
       if (message.command === "mute_status") {
         vscode.commands.executeCommand('setContext', 'proximity-chat.muted', message.muted);

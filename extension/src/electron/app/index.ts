@@ -13,7 +13,7 @@ declare global {
       requestPath: () => void;
       debug: (message: string) => void;
       info: (message: string) => void;
-      error: (message: string) => void;
+      error: (message: string) => never;
     };
   }
 }
@@ -64,9 +64,20 @@ const pc = new RTCPeerConnection({
   bundlePolicy: 'max-bundle'
 });
 
-const localStream = await navigator.mediaDevices.getUserMedia({
-  audio: true
-});
+let localStream: MediaStream;
+try {
+  localStream = await navigator.mediaDevices.getUserMedia({
+    audio: true
+  });
+} catch (e) {
+  if (e instanceof DOMException && e.name === "NotAllowedError") {
+    window.electronAPI.error("Permission denied to use microphone. Please grant permission to Visual Studio Code and try again.");
+  } else if (e instanceof Error) {
+    window.electronAPI.error(`Failed to get microphone (${e.name}, ${e.message}), exiting.`);
+  } else {
+    window.electronAPI.error(`Failed to get microphone, exiting. ${e}`);
+  }
+}
 
 // TODO: handle different tracks?
 const track = localStream.getTracks()[0];
