@@ -1,5 +1,7 @@
-import { EventEmitter, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Event } from 'vscode';
+import { EventEmitter, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Event, ThemeIcon } from 'vscode';
 import { ActiveSessionsMessage } from './ipc';
+
+const NO_DATA_ID = "no-data";
 
 export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Participant> {
   private _onDidChangeTreeData: EventEmitter<null> = new EventEmitter<null>();
@@ -18,7 +20,7 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
   getChildren(element?: Participant | undefined): ProviderResult<Participant[]> {
     if (element === undefined) {
       if (this.data === null) {
-        return [new Participant("no-data", "Open a file to see other participants here.", "", -1)];
+        return [new Participant(NO_DATA_ID, "Open a file to see other participants here.", "", -1)];
       }
 
       const participants = this.data.sessions.map(session => {
@@ -51,5 +53,16 @@ class Participant extends TreeItem {
     this.id = id;
     this.description = path;
     this.distance = distance;
+
+    if (id === NO_DATA_ID) return;
+
+    let hopText = `${distance} hop${distance === 1 ? "" : "s"}`;
+    if (distance <= 0) {
+      hopText = "In the same file";
+      this.iconPath = new ThemeIcon("file");
+    } else if (distance <= 2) {
+      this.iconPath = new ThemeIcon("unmute");
+    }
+    this.tooltip = `${name} | ${path} | ${hopText}`;
   }
 }
