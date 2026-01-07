@@ -210,6 +210,28 @@ export class WebSocketServer extends DurableObject {
     });
   }
 
+  private sendActiveSessions() {
+    // Collect all active sessions
+    const sessions = [];
+    for (const [_, session] of this.sessions) {
+      if (!session.trackId) continue;
+      if (!session.path) continue;
+      sessions.push({
+        id: session.id,
+        trackId: session.trackId,
+        path: session.path
+      });
+    }
+
+    // Send active track data to all clients
+    for (const [ws, _] of this.sessions) {
+      ws.send(JSON.stringify({
+        command: "active_sessions",
+        sessions
+      }));
+    }
+  }
+
   async webSocketMessage(ws: WebSocket, messageStr: string) {
     // Get the session associated with the WebSocket connection.
     const session = this.sessions.get(ws)!;
@@ -219,43 +241,14 @@ export class WebSocketServer extends DurableObject {
       ws.serializeAttachment(newAttachment);
       this.sessions.set(ws, newAttachment);
 
-      // Collect all active sessions
-      // TODO: should only collect relevant ones based on
-      // user path
-      const sessions = [];
-      for (const [_, session] of this.sessions) {
-        if (!session.trackId) continue;
-        if (!session.path) continue;
-        sessions.push({
-          id: session.id,
-          trackId: session.trackId,
-          path: session.path
-        });
-      }
-
-      // Send active track data to all clients
-      for (const [ws, _] of this.sessions) {
-        ws.send(JSON.stringify({
-          command: "active_sessions",
-          sessions
-        }));
-      }
+      this.sendActiveSessions();
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
     if (this.sessions.has(ws)) {
-      const trackId = this.sessions.get(ws)!.trackId;
-      if (trackId) {
-        for (const [ws, _] of this.sessions) {
-          ws.send(JSON.stringify({
-            command: "track_closed",
-            trackId
-          }));
-        }
-      }
-
       this.sessions.delete(ws);
+      this.sendActiveSessions();
     }
 
     ws.close(code, 'Durable Object is closing WebSocket');

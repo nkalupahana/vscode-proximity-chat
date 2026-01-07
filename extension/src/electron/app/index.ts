@@ -36,6 +36,7 @@ const adjustVolumeOfExistingTracks = () => {
     return;
   }
 
+  // Connect to everyone in message
   for (const session of lastActiveTracksMessage.sessions) {
     if (!(session.trackId in activeTracks)) continue;
     const dist = getPathDistance(session.path, path);
@@ -44,8 +45,20 @@ const adjustVolumeOfExistingTracks = () => {
       1: 0.6,
       2: 0.1
     } as Record<number, number>;
+    // TODO: maybe don't connect to everyone
     const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
     activeTracks[session.trackId].volume = volume;
+  }
+  
+  // Disconnect from everyone not in message (people who have disconnected entirely)
+  // TODO: disconnect from volume 0 tracks after a while
+  const activeTrackIds = new Set(lastActiveTracksMessage.sessions.map(session => session.trackId));
+  for (const trackId in activeTracks) {
+    if (!activeTrackIds.has(trackId)) {
+      activeTracks[trackId].pause();
+      activeTracks[trackId].remove();
+      delete activeTracks[trackId];
+    }
   }
 };
 
@@ -296,12 +309,6 @@ const setUpWebSocket = () => {
           });
         }
       });
-    } else if (message.command === 'track_closed') {
-      if (message.trackId in activeTracks) {
-        activeTracks[message.trackId].pause();
-        activeTracks[message.trackId].remove();
-        delete activeTracks[message.trackId];
-      }
     }
   };
 };

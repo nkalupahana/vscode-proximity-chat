@@ -13,14 +13,8 @@ const activeSessionsMessage = z.object({
 
 export type ActiveTracksMessage = z.infer<typeof activeSessionsMessage>;
 
-const trackClosedMessage = z.object({
-  command: z.literal("track_closed"),
-  trackId: z.string()
-});
-
 export const websocketMessageSchema = z.discriminatedUnion("command", [
-  activeSessionsMessage,
-  trackClosedMessage
+  activeSessionsMessage
 ]);
 
 export type WebSocketMessage = z.infer<typeof websocketMessageSchema>;
