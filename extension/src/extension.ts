@@ -48,10 +48,10 @@ const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor 
     return;
   }
 
-  const data = getRepoAttributes(editor.document.uri.path, debug);
+  const data = getRepoAttributes(editor.document.uri.fsPath, debug);
 
   if (typeof data === "object" && data !== null) {
-    const normalizedPath = normalizePath(editor.document.uri.path);
+    const normalizedPath = normalizePath(editor.document.uri.fsPath);
     if (!normalizedPath.startsWith(data.basePath)) {
       error(`Unable to update path. Path (${normalizePath}) should start with repo base path ${data.basePath}, but it doesn't.`);
     } else {
@@ -130,7 +130,16 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(muteIcon);
   context.subscriptions.push(deafenIcon);
 
-  const disposable = vscode.commands.registerCommand('proximity-chat.start', async () => {
+  const setNameCommand = vscode.commands.registerCommand('proximity-chat.set-name', async () => {
+    const name = await vscode.window.showInputBox({
+      prompt: "Set your public display name. Enter nothing to be anonymous.",
+      value: vscode.workspace.getConfiguration().get("proximityChat.name") ?? ""
+    });
+    if (name === undefined) return;
+    vscode.workspace.getConfiguration().update("proximityChat.name", name, true);
+  });
+
+  const startCommand = vscode.commands.registerCommand('proximity-chat.start', async () => {
     // Reset state
     participantsTreeViewDataProvider.setActiveSessions(null);
 
@@ -202,7 +211,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
       info("Chat started! Open a file to begin.");
     } else {
-      const checkRemote = getRepoAttributes(vscode.window.activeTextEditor.document.uri.path, debug);
+      const checkRemote = getRepoAttributes(vscode.window.activeTextEditor.document.uri.fsPath, debug);
       if (checkRemote === ERR_NOT_IN_GIT_REPO) {
         info("Cannot connect because this file is not in a Git repository. Set up a repository with a remote (e.g. GitHub) to use Proximity Chat with your current file.");
       } else if (checkRemote === ERR_NO_REMOTES) {
@@ -283,7 +292,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
   });
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(startCommand);
 }
 
 // This method is called when your extension is deactivated

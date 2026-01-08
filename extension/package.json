@@ -34,6 +34,12 @@
           "type": "string",
           "default": "origin",
           "description": "Proximity chat uses your Git remote's URL in order to connect you with people who are working in the same repository. If there are multiple remotes, 'origin' is selected, and if 'origin' is not present, one is chosen randomly. To use a specific remote name instead of origin in these cases, configure a remote name here."
+        },
+        "proximityChat.name": {
+          "type": "string",
+          "default": "",
+          "description": "Your public display name. If you leave this blank, you will be anonymous.",
+          "scope": "application"
         }
       }
     },
@@ -67,6 +73,10 @@
         "command": "proximity-chat.deafen",
         "title": "Proximity Chat: Undeafen",
         "enablement": "proximity-chat.running && proximity-chat.deafened"
+      },
+      {
+        "command": "proximity-chat.set-name",
+        "title": "Proximity Chat: Set Username..."
       }
     ]
   },
