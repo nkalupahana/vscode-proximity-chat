@@ -1,10 +1,11 @@
 import { Mutex } from "async-mutex";
-import { getPathDistance } from "./utils";
+import { getPathDistance, getVolume } from "./utils";
 import { ActiveSessionsMessage, SetNameMessage, type SetPathMessage } from "../../ipc";
 import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
-import { chunk } from "lodash";
+import { chunk, set } from "lodash";
 
 const BASE_URL = "https://prox.nisa.la";
+const ONE_MINUTE = 60 * 1000;
 declare global {
   interface Window {
     electronAPI: {
@@ -32,6 +33,7 @@ let pendingStreamIdToTrackId: Record<string, string> = {};
 let activeTracks: Record<string, HTMLAudioElement> = {};
 let deafened = false;
 let name = "";
+let setToZeroVolumeAt: Record<string, number> = {};
 
 window.electronAPI.onSetName((newName) => {
   name = newName.name;
@@ -45,36 +47,46 @@ window.electronAPI.onSetName((newName) => {
 
 window.electronAPI.requestName();
 
+const disconnectTrack = (trackId: string) => {
+  window.electronAPI.debug("Disconnecting track: " + trackId);
+  activeTracks[trackId].pause();
+  activeTracks[trackId].remove();
+  delete activeTracks[trackId];
+};
+
+setInterval(() => {
+  for (const trackId in setToZeroVolumeAt) {
+    if (Date.now() - setToZeroVolumeAt[trackId] > (ONE_MINUTE * 3)) {
+      disconnectTrack(trackId);
+    }
+  }
+}, ONE_MINUTE);
+
 const adjustVolumeOfExistingTracks = () => {
   if (!path || !lastActiveTracksMessage || deafened) {
     for (const trackId in activeTracks) {
       activeTracks[trackId].volume = 0;
+      setToZeroVolumeAt[trackId] = Date.now();
     }
     return;
   }
 
-  // Connect to everyone in message
   for (const session of lastActiveTracksMessage.sessions) {
     if (!(session.trackId in activeTracks)) continue;
-    const dist = getPathDistance(session.path, path);
-    const DISTANCE_TO_VOLUME = {
-      0: 1,
-      1: 0.5,
-      2: 0.1
-    } as Record<number, number>;
-    // TODO: maybe don't connect to everyone
-    const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
+    const volume = getVolume(session.path, path);
     activeTracks[session.trackId].volume = volume;
+    if (volume === 0) {
+      setToZeroVolumeAt[session.trackId] = Date.now();
+    } else {
+      delete setToZeroVolumeAt[session.trackId];
+    }
   }
 
   // Disconnect from everyone not in message (people who have disconnected entirely)
-  // TODO: disconnect from volume 0 tracks after a while
   const activeTrackIds = new Set(lastActiveTracksMessage.sessions.map(session => session.trackId));
   for (const trackId in activeTracks) {
     if (!activeTrackIds.has(trackId)) {
-      activeTracks[trackId].pause();
-      activeTracks[trackId].remove();
-      delete activeTracks[trackId];
+      disconnectTrack(trackId);
     }
   }
 };
@@ -132,7 +144,6 @@ try {
   }
 }
 
-// TODO: handle different tracks?
 const track = localStream.getTracks()[0];
 window.electronAPI.onMute(() => {
   track.enabled = !track.enabled;
@@ -195,7 +206,7 @@ pc.ontrack = event => {
   const stream = event.streams[0];
   const trackId = pendingStreamIdToTrackId[stream.id];
   if (!trackId) {
-    window.electronAPI.debug("Received stream that was not known to be requested");
+    window.electronAPI.debug("Received track that was not known to be requested");
     return;
   }
 
@@ -203,6 +214,8 @@ pc.ontrack = event => {
     window.electronAPI.debug("Received track that is already active, ignoring.");
     return;
   }
+  
+  window.electronAPI.debug("Connecting to track: " + trackId);
 
   const audio = new Audio();
   audio.srcObject = stream;
@@ -294,7 +307,9 @@ const setUpWebSocket = () => {
         for (const session of message.sessions) {
           if (sessionId === session.id) continue;
           if (session.trackId in activeTracks) continue;
+          if (path && getVolume(session.path, path) === 0) continue;
 
+          window.electronAPI.debug("Requesting track: " + session.trackId);
           tracksToConnect.push({
             location: "remote",
             sessionId: session.id,

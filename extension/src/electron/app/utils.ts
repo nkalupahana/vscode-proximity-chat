@@ -23,3 +23,13 @@ export function getPathDistance(path1: string, path2: string): number {
 
     return Math.max(stepsUp + stepsDown - 1, 0);
 }
+
+export function getVolume(path1: string, path2: string): number {
+    const distance = getPathDistance(path1, path2);
+    const DISTANCE_TO_VOLUME = {
+        0: 1,
+        1: 0.5,
+        2: 0.1
+    } as Record<number, number>;
+    return DISTANCE_TO_VOLUME[distance] ?? 0;
+}
