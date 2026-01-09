@@ -28,7 +28,7 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
         return new Participant(
           session.id,
           me ? `You (${session.name})` : session.name,
-          session.path,
+          session.prettyPath.slice(1),
           me ? -1 : session.distance
         );
       });
@@ -51,7 +51,7 @@ class Participant extends TreeItem {
   ) {
     super(name, TreeItemCollapsibleState.None);
     this.id = id;
-    this.description = path.slice(1);
+    this.description = path;
     this.distance = distance;
 
     if (id === NO_DATA_ID) return;

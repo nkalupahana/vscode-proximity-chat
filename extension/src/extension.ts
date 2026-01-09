@@ -18,11 +18,12 @@ const info = (message: string) => {
   vscode.window.showInformationMessage("Proximity Chat: " + message);
 };
 
-const sendPath = (electron: ChildProcess, fsPath: string | null, path: string | null, remote: string | null) => {
+const sendPath = (electron: ChildProcess, fsPath: string | null, path: string | null, remote: string | null, prettyPath: string | null) => {
   lastSentFsPath = fsPath;
   electron.send({
     command: "set_path",
     path: path,
+    prettyPath: prettyPath,
     remote: remote
   });
 };
@@ -43,7 +44,7 @@ const lastSentPathActive = () => {
 const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
   if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
     if (!lastSentPathActive()) {
-      sendPath(electron, null, null, null);
+      sendPath(electron, null, null, null, null);
     }
     return;
   }
@@ -56,8 +57,8 @@ const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor 
       error(`Unable to update path. Path (${normalizedPath}) should start with repo base path ${data.basePath}, but it doesn't.`);
     } else {
       const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
-      const prettyPath = path.normalize(editor.document.uri.fsPath).slice(normalizePath.length).split(path.sep).join(path.posix.sep);
-      sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote);
+      const prettyPath = path.normalize(editor.document.uri.fsPath).slice(data.basePath.length).split(path.sep).join(path.posix.sep);
+      sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote, prettyPath);
     }
   }
 }, 100);

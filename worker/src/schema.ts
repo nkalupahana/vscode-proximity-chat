@@ -60,7 +60,8 @@ export const renegotiateSchema = z.object({
 
 const setPathMessage = z.object({
   command: z.literal("set_path"),
-  path: z.string()
+  path: z.string(),
+  prettyPath: z.string()
 })
 
 const setNameMessage = z.object({

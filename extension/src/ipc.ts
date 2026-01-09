@@ -41,6 +41,7 @@ const activeSessionsMessage = z.object({
     z.object({
       id: z.string(),
       path: z.string(),
+      prettyPath: z.string(),
       name: z.string(),
       distance: z.number()
     })
@@ -70,6 +71,7 @@ export type ExtensionIncomingMessage = z.infer<typeof extensionIncomingMessageSc
 const setPathMessage = z.object({
   command: z.literal("set_path"),
   path: z.string().nullable(),
+  prettyPath: z.string().nullable(),
   remote: z.string().nullable()
 });
 

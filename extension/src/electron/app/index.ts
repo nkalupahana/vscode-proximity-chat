@@ -26,6 +26,7 @@ declare global {
 let ws: WebSocket | null = null;
 let remote: string | null = null;
 let path: string | null = null;
+let prettyPath: string | null = null;
 let lastActiveTracksMessage: ActiveTracksMessage | null = null;
 let pendingStreamIdToTrackId: Record<string, string> = {};
 let activeTracks: Record<string, HTMLAudioElement> = {};
@@ -91,6 +92,7 @@ const updateExtensionActiveSessions = () => {
       return {
         id: session.id,
         path: session.path,
+        prettyPath: session.prettyPath,
         name: session.name ?? "Anonymous",
         distance: getPathDistance(session.path, path!)
       };
@@ -212,11 +214,12 @@ pc.ontrack = event => {
   document.getElementById("audios")!.appendChild(audio);
 };
 
-const setPath = (path: string) => {
+const setPath = (path: string, prettyPath: string) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({
     command: "set_path",
-    path
+    path,
+    prettyPath
   }));
 };
 
@@ -229,12 +232,13 @@ window.electronAPI.onSetPath((newPath) => {
   }
 
   path = newPath.path;
+  prettyPath = newPath.prettyPath;
 
-  if (path !== null) {
+  if (path !== null && prettyPath !== null) {
     if (ws === null) {
       setUpWebSocket();
     }
-    setPath(path);
+    setPath(path, prettyPath);
     adjustVolumeOfExistingTracks();
   } else {
     window.electronAPI.resetActiveSessions();
@@ -257,8 +261,8 @@ const setUpWebSocket = () => {
   ws = new WebSocket(`${BASE_URL}/websocket?${wsParams.toString()}`);
   ws.onopen = () => {
     window.electronAPI.debug("WebSocket connected!");
-    if (path) {
-      setPath(path);
+    if (path && prettyPath) {
+      setPath(path, prettyPath);
     } else {
       window.electronAPI.requestPath();
     }

@@ -18,7 +18,7 @@ const debug = (message: string) => {
 
 const createWindow = () => {
   const win = new BrowserWindow({
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, "views", "preload.js"),
       backgroundThrottling: false,

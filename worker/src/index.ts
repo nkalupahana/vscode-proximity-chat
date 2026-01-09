@@ -220,6 +220,7 @@ export class WebSocketServer extends DurableObject {
         id: session.id,
         trackId: session.trackId,
         path: session.path,
+        prettyPath: session.prettyPath,
         name: session.name
       });
     }
@@ -238,7 +239,7 @@ export class WebSocketServer extends DurableObject {
     const session = this.sessions.get(ws)!;
     const message = messageSchema.parse(JSON.parse(messageStr));
     if (message.command === "set_path") {
-      const newAttachment = { ...session, path: message.path };
+      const newAttachment = { ...session, path: message.path, prettyPath: message.prettyPath };
       ws.serializeAttachment(newAttachment);
       this.sessions.set(ws, newAttachment);
 
