@@ -1,4 +1,4 @@
-This VS Code extension adds filesystem-based proximity voice chat to VS Code.
+This extension adds filesystem-based proximity voice chat to VS Code.
 
 You [may have already heard of proximity chat from video games.](https://en.wikipedia.org/wiki/Proximity_chat) In games, people standing right next to you are loud, but as they move further away from you, they become quieter and quieter, until you can't hear them at all. This extension brings that concept to VS Code. If you're in the same file as another person, you'll hear them at 100% volume. As you move further away from them in the file structure (same folder but different file, one level up/down, etc.), you'll hear them more quietly, until you can't hear them at all.
 
