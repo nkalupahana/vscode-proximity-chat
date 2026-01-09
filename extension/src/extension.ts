@@ -246,7 +246,7 @@ export function activate(context: vscode.ExtensionContext) {
 	  }));
 
     electron.on('exit', () => {
-      info("Voice process exited; Proximity Chat is no longer active.");
+      info("Chat ended.");
       vscode.commands.executeCommand('setContext', 'proximity-chat.running', false);
       activeEditorListener.dispose();
       stopCommand.dispose();
