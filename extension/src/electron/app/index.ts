@@ -299,6 +299,12 @@ const setUpWebSocket = () => {
     }
   };
 
+  ws.onerror = (e) => {
+    window.electronAPI.debug("Websocket onerror called");
+    console.error(e);
+    window.electronAPI.error("Lost connection with server, exiting.");
+  }
+
   ws.onmessage = async ev => {
     let message: WebSocketMessage;
     try {
