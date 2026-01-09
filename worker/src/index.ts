@@ -23,8 +23,12 @@ const createSession = async (request: Request, env: Env) => {
     }),
   });
 
-  // TODO: handle errors
-  if (!response.ok) {}
+  if (!response.ok) {
+    console.error("Error creating session");
+    console.error(data);
+    console.error(await response.text());
+    return new Response(null, { status: 500 });
+  }
   return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
 }
 
@@ -46,8 +50,12 @@ const sendTrack = async (request: Request, env: Env) => {
     }),
   });
 
-  // TODO: handle errors
-  if (!response.ok) {}
+  if (!response.ok) {
+    console.error("Error sending track");
+    console.error(data);
+    console.error(await response.text());
+    return new Response(null, { status: 500 });
+  }
   return new Response(JSON.stringify(cloudflareSendTrackSchema.parse(await response.json())));
 }
 
@@ -65,8 +73,13 @@ const receiveTracks = async (request: Request, env: Env) => {
     }),
   });
 
-  // TODO: handle errors
-  if (!response.ok) {}
+  if (!response.ok) {
+    console.error("Error receiving tracks");
+    console.error(data);
+    console.error(await response.text());
+    return new Response(null, { status: 500 });
+  }
+
   const datap = await response.json();
   const responseJson = cloudflareReceiveTrackSchema.parse(datap);
   const midToTrackId: Record<string, string> = {};
@@ -105,8 +118,12 @@ const renegotiate = async (request: Request, env: Env) => {
     }),
   });
 
-  // TODO: handle errors
-  if (!response.ok) {}
+  if (!response.ok) {
+    console.error("Error renegotiating");
+    console.error(data);
+    console.error(await response.text());
+    return new Response(null, { status: 500 });
+  }
   return new Response();
 }
 
@@ -146,7 +163,6 @@ export default {
     }
 
     if (url.pathname === '/tracks/receive' && request.method === 'POST') {
-      // TODO: handle tracks to receive
       return receiveTracks(request, env);
     }
 
