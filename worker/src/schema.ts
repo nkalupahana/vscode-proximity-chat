@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { tr } from 'zod/v4/locales';
 
 export const sessionSchema = z.object({
   sdp: z.string(),

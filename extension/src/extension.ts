@@ -177,6 +177,14 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    context.subscriptions.push({
+      dispose: () => {
+        if (electron.connected && electron.exitCode === null) {
+          electron.kill();
+        }
+      }
+    });
+
     vscode.commands.executeCommand('setContext', 'proximity-chat.running', true);
     vscode.commands.executeCommand('setContext', 'proximity-chat.muted', false);
     vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', false);

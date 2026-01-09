@@ -2,19 +2,23 @@ import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from "node:path";
 import { ExtensionOutgoingMessage, extensionOutgoingMessageSchema } from '../ipc';
 
-// Menu.setApplicationMenu(null);
-// const lockAcquired = app.requestSingleInstanceLock();
-// if (!lockAcquired) {
-//   // TODO: send message to user
-//   app.quit();
-//   process.exit(0);
-// }
-
-app.dock?.hide();
-
 const debug = (message: string) => {
   process.send?.({ command: "debug", message });
 };
+
+const error = (message: string) => {
+  process.send?.({ command: "error", message });
+};
+
+Menu.setApplicationMenu(null);
+const lockAcquired = app.requestSingleInstanceLock();
+if (!lockAcquired) {
+  error("Proximity Chat is already running somewhere else. Please stop that instance and try again.");
+  app.quit();
+  process.exit(0);
+}
+
+app.dock?.hide();
 
 const createWindow = () => {
   const win = new BrowserWindow({

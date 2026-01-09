@@ -164,6 +164,11 @@ const sessionResponse = await fetch(`${BASE_URL}/session`, {
   })
 });
 
+if (!sessionResponse.ok) {
+  window.electronAPI.debug(await sessionResponse.text());
+  window.electronAPI.error("Failed to create audio session. Please try again later.");
+}
+
 const session = await sessionResponse.json();
 const sessionId = session.sessionId;
 await pc.setRemoteDescription(
@@ -196,6 +201,12 @@ const trackResponse = await fetch(`${BASE_URL}/tracks/send`, {
     track: trackData
   })
 });
+
+if (!trackResponse.ok) {
+  window.electronAPI.debug(await trackResponse.text());
+  window.electronAPI.error("Failed to send audio track to server. Please try again later.");
+}
+
 const trackResponseData = await trackResponse.json();
 
 await pc.setRemoteDescription(
@@ -329,8 +340,10 @@ const setUpWebSocket = () => {
               })
             });
 
-            // TODO: handle error
-            if (!trackResponse.ok) { }
+            if (!trackResponse.ok) { 
+              window.electronAPI.debug(await trackResponse.text());
+              window.electronAPI.error("Failed to receive audio track from server. Please try again later.");
+            }
             const trackResponseData = await trackResponse.json();
 
             pendingStreamIdToTrackId = {
@@ -344,13 +357,18 @@ const setUpWebSocket = () => {
               )
             );
             await pc.setLocalDescription(await pc.createAnswer());
-            await fetch(`${BASE_URL}/renegotiate`, {
+            const renegotiateResponse = await fetch(`${BASE_URL}/renegotiate`, {
               method: 'POST',
               body: JSON.stringify({
                 sessionId,
                 sdp: pc.localDescription!.sdp
               })
             });
+
+            if (!renegotiateResponse.ok) {
+              window.electronAPI.debug(await renegotiateResponse.text());
+              window.electronAPI.error("Failed to connect to received audio track. Please try again later.");
+            }
           }
         }
       });
