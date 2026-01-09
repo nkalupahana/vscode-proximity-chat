@@ -52,6 +52,7 @@ const disconnectTrack = (trackId: string) => {
   activeTracks[trackId].pause();
   activeTracks[trackId].remove();
   delete activeTracks[trackId];
+  delete setToZeroVolumeAt[trackId];
 };
 
 setInterval(() => {
@@ -66,7 +67,7 @@ const adjustVolumeOfExistingTracks = () => {
   if (!path || !lastActiveTracksMessage || deafened) {
     for (const trackId in activeTracks) {
       activeTracks[trackId].volume = 0;
-      setToZeroVolumeAt[trackId] = Date.now();
+      if (!setToZeroVolumeAt[trackId]) setToZeroVolumeAt[trackId] = Date.now();
     }
     return;
   }
@@ -252,10 +253,10 @@ window.electronAPI.onSetPath((newPath) => {
       setUpWebSocket();
     }
     setPath(path, prettyPath);
-    adjustVolumeOfExistingTracks();
   } else {
     window.electronAPI.resetActiveSessions();
   }
+  adjustVolumeOfExistingTracks();
 });
 
 // We're ready to go! Request a path from the extension to 
