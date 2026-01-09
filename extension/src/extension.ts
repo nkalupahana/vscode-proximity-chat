@@ -1,11 +1,9 @@
 import * as vscode from 'vscode';
 import { ElectronManager } from 'vscode-electron-manager';
 import path from "node:path";
-import { ChildProcess, execSync } from 'node:child_process';
-import gitUrlParse from 'git-url-parse';
+import { execSync } from 'node:child_process';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 import { ParticipantsTreeViewDataProvider } from './participantsTreeView';
-import { debounce } from "lodash";
 import { info, error } from './log';
 import { ERR_NO_REMOTES, ERR_NOT_IN_GIT_REPO, getRepoAttributes, trySendPath } from './path';
 
