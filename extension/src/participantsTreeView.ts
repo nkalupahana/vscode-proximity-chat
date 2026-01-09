@@ -51,7 +51,7 @@ class Participant extends TreeItem {
   ) {
     super(name, TreeItemCollapsibleState.None);
     this.id = id;
-    this.description = path;
+    this.description = path.slice(1);
     this.distance = distance;
 
     if (id === NO_DATA_ID) return;

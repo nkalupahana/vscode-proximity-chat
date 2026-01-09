@@ -2,6 +2,7 @@ import { Mutex } from "async-mutex";
 import { getPathDistance } from "./utils";
 import { ActiveSessionsMessage, SetNameMessage, type SetPathMessage } from "../../ipc";
 import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
+import { chunk } from "lodash";
 
 const BASE_URL = "https://prox.nisa.la";
 declare global {
@@ -57,14 +58,14 @@ const adjustVolumeOfExistingTracks = () => {
     const dist = getPathDistance(session.path, path);
     const DISTANCE_TO_VOLUME = {
       0: 1,
-      1: 0.6,
+      1: 0.5,
       2: 0.1
     } as Record<number, number>;
     // TODO: maybe don't connect to everyone
     const volume = DISTANCE_TO_VOLUME[dist] ?? 0;
     activeTracks[session.trackId].volume = volume;
   }
-  
+
   // Disconnect from everyone not in message (people who have disconnected entirely)
   // TODO: disconnect from volume 0 tracks after a while
   const activeTrackIds = new Set(lastActiveTracksMessage.sessions.map(session => session.trackId));
@@ -298,36 +299,39 @@ const setUpWebSocket = () => {
         }
 
         if (tracksToConnect.length) {
-          const trackResponse = await fetch(`${BASE_URL}/tracks/receive`, {
-            method: 'POST',
-            body: JSON.stringify({
-              sessionId,
-              tracks: tracksToConnect
-            })
-          });
+          const trackChunks = chunk(tracksToConnect, 64);
+          for (const trackChunk of trackChunks) {
+            const trackResponse = await fetch(`${BASE_URL}/tracks/receive`, {
+              method: 'POST',
+              body: JSON.stringify({
+                sessionId,
+                tracks: trackChunk
+              })
+            });
 
-          // TODO: handle error
-          if (!trackResponse.ok) { }
-          const trackResponseData = await trackResponse.json();
+            // TODO: handle error
+            if (!trackResponse.ok) { }
+            const trackResponseData = await trackResponse.json();
 
-          pendingStreamIdToTrackId = {
-            ...pendingStreamIdToTrackId,
-            ...trackResponseData.streamIdToTrackId
-          };
+            pendingStreamIdToTrackId = {
+              ...pendingStreamIdToTrackId,
+              ...trackResponseData.streamIdToTrackId
+            };
 
-          await pc.setRemoteDescription(
-            new RTCSessionDescription(
-              trackResponseData.sessionDescription
-            )
-          );
-          await pc.setLocalDescription(await pc.createAnswer());
-          await fetch(`${BASE_URL}/renegotiate`, {
-            method: 'POST',
-            body: JSON.stringify({
-              sessionId,
-              sdp: pc.localDescription!.sdp
-            })
-          });
+            await pc.setRemoteDescription(
+              new RTCSessionDescription(
+                trackResponseData.sessionDescription
+              )
+            );
+            await pc.setLocalDescription(await pc.createAnswer());
+            await fetch(`${BASE_URL}/renegotiate`, {
+              method: 'POST',
+              body: JSON.stringify({
+                sessionId,
+                sdp: pc.localDescription!.sdp
+              })
+            });
+          }
         }
       });
     }

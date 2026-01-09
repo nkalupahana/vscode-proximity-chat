@@ -53,7 +53,7 @@ const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor 
   if (typeof data === "object" && data !== null) {
     const normalizedPath = normalizePath(editor.document.uri.fsPath);
     if (!normalizedPath.startsWith(data.basePath)) {
-      error(`Unable to update path. Path (${normalizePath}) should start with repo base path ${data.basePath}, but it doesn't.`);
+      error(`Unable to update path. Path (${normalizedPath}) should start with repo base path ${data.basePath}, but it doesn't.`);
     } else {
       const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
       sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote);
