@@ -4,6 +4,10 @@ const requestPathMessage = z.object({
   command: z.literal("request_path")
 });
 
+const requestNameMessage = z.object({
+  command: z.literal("request_name")
+});
+
 const muteStatusMessage = z.object({
   command: z.literal("mute_status"),
   muted: z.boolean()
@@ -51,6 +55,7 @@ const resetActiveSessionsMessage = z.object({
 
 export const extensionIncomingMessageSchema = z.discriminatedUnion("command", [
   requestPathMessage,
+  requestNameMessage,
   muteStatusMessage,
   deafenStatusMessage,
   debugMessage,
@@ -70,6 +75,13 @@ const setPathMessage = z.object({
 
 export type SetPathMessage = z.infer<typeof setPathMessage>;
 
+const setNameMessage = z.object({
+  command: z.literal("set_name"),
+  name: z.string()
+});
+
+export type SetNameMessage = z.infer<typeof setNameMessage>;
+
 const muteMessage = z.object({
   command: z.literal("mute")
 });
@@ -80,6 +92,7 @@ const deafenMessage = z.object({
 
 export const extensionOutgoingMessageSchema = z.discriminatedUnion("command", [
   setPathMessage,
+  setNameMessage,
   muteMessage,
   deafenMessage
 ]);

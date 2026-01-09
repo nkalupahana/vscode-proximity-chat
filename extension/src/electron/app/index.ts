@@ -1,6 +1,6 @@
 import { Mutex } from "async-mutex";
 import { getPathDistance } from "./utils";
-import { ActiveSessionsMessage, type SetPathMessage } from "../../ipc";
+import { ActiveSessionsMessage, SetNameMessage, type SetPathMessage } from "../../ipc";
 import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
 
 const BASE_URL = "https://prox.nisa.la";
@@ -8,9 +8,11 @@ declare global {
   interface Window {
     electronAPI: {
       onSetPath: (callback: (data: SetPathMessage) => void) => void;
+      onSetName: (callback: (data: SetNameMessage) => void) => void;
       onMute: (callback: () => boolean) => void;
       onDeafen: (callback: () => boolean) => void;
       requestPath: () => void;
+      requestName: () => void;
       debug: (message: string) => void;
       info: (message: string) => void;
       error: (message: string) => never;
@@ -27,6 +29,19 @@ let lastActiveTracksMessage: ActiveTracksMessage | null = null;
 let pendingStreamIdToTrackId: Record<string, string> = {};
 let activeTracks: Record<string, HTMLAudioElement> = {};
 let deafened = false;
+let name = "";
+
+window.electronAPI.onSetName((newName) => {
+  name = newName.name;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      command: "set_name",
+      name
+    }));
+  }
+});
+
+window.electronAPI.requestName();
 
 const adjustVolumeOfExistingTracks = () => {
   if (!path || !lastActiveTracksMessage || deafened) {
@@ -75,7 +90,7 @@ const updateExtensionActiveSessions = () => {
       return {
         id: session.id,
         path: session.path,
-        name: "Anonymous", // TODO: allow setting real names
+        name: session.name ?? "Anonymous",
         distance: getPathDistance(session.path, path!)
       };
     })
@@ -245,6 +260,12 @@ const setUpWebSocket = () => {
       setPath(path);
     } else {
       window.electronAPI.requestPath();
+    }
+    if (name) {
+      ws?.send(JSON.stringify({
+        command: "set_name",
+        name
+      }));
     }
   };
 

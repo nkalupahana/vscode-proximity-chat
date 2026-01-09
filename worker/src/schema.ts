@@ -63,4 +63,9 @@ const setPathMessage = z.object({
   path: z.string()
 })
 
-export const messageSchema = z.discriminatedUnion("command", [setPathMessage]);
+const setNameMessage = z.object({
+  command: z.literal("set_name"),
+  name: z.string()
+})
+
+export const messageSchema = z.discriminatedUnion("command", [setPathMessage, setNameMessage]);

@@ -6,6 +6,7 @@ const activeSessionsMessage = z.object({
     z.object({
       id: z.string(),
       trackId: z.string(),
+      name: z.string().nullish(),
       path: z.string()
     })
   )

@@ -208,6 +208,16 @@ export function activate(context: vscode.ExtensionContext) {
     const deafenCommand = vscode.commands.registerCommand('proximity-chat.deafen', sendDeafen);
     const undeafenCommand = vscode.commands.registerCommand('proximity-chat.undeafen', sendDeafen);
 
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("proximityChat.name")) {
+        const name = vscode.workspace.getConfiguration().get("proximityChat.name") ?? "";
+        electron.send({
+          command: "set_name",
+          name: name
+        });
+      }
+    });
+
     if (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.document.uri.scheme !== "file") {
       info("Chat started! Open a file to begin.");
     } else {
@@ -252,6 +262,15 @@ export function activate(context: vscode.ExtensionContext) {
       debug("Received command: " + message.command);
       if (message.command === "request_path") {
         trySendPath(electron, vscode.window.activeTextEditor, debug);
+      }
+      if (message.command === "request_name") {
+        const name = vscode.workspace.getConfiguration().get("proximityChat.name") ?? "";
+        if (name) {
+          electron.send({
+            command: "set_name",
+            name
+          });
+        }
       }
       if (message.command === "debug") {
         channel.appendLine("[Electron]" + message.message);

@@ -219,7 +219,8 @@ export class WebSocketServer extends DurableObject {
       sessions.push({
         id: session.id,
         trackId: session.trackId,
-        path: session.path
+        path: session.path,
+        name: session.name
       });
     }
 
@@ -238,6 +239,20 @@ export class WebSocketServer extends DurableObject {
     const message = messageSchema.parse(JSON.parse(messageStr));
     if (message.command === "set_path") {
       const newAttachment = { ...session, path: message.path };
+      ws.serializeAttachment(newAttachment);
+      this.sessions.set(ws, newAttachment);
+
+      this.sendActiveSessions();
+    } else if (message.command === "set_name") {
+      const newName = message.name || undefined;
+      if (session.name === newName) return;
+      const newAttachment = { ...session };
+      if (newName) {
+        newAttachment.name = newName.slice(0, 38);
+      } else {
+        delete newAttachment.name;
+      }
+      
       ws.serializeAttachment(newAttachment);
       this.sessions.set(ws, newAttachment);
 
