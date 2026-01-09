@@ -59,9 +59,11 @@ class Participant extends TreeItem {
     let hopText = `${distance} hop${distance === 1 ? "" : "s"}`;
     if (distance <= 0) {
       hopText = "In the same file";
-      this.iconPath = new ThemeIcon("file");
+      this.iconPath = new ThemeIcon("audio-2");
+    } else if (distance <= 1) {
+      this.iconPath = new ThemeIcon("audio-1");
     } else if (distance <= 2) {
-      this.iconPath = new ThemeIcon("unmute");
+      this.iconPath = new ThemeIcon("audio-0");
     }
     this.tooltip = `${name} | ${path} | ${hopText}`;
   }

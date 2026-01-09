@@ -17,6 +17,29 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "icons":{
+      "audio-2": {
+        "description": "Audio icon with two lines",
+        "default": {
+          "fontPath": "audio.woff",
+          "fontCharacter": "A"
+        }
+      },
+      "audio-1": {
+        "description": "Audio icon with one line",
+        "default": {
+          "fontPath": "audio.woff",
+          "fontCharacter": "B"
+        }
+      },
+      "audio-0": {
+        "description": "Audio icon with zero lines",
+        "default": {
+          "fontPath": "audio.woff",
+          "fontCharacter": "C"
+        }
+      }
+    },
     "views": {
       "explorer": [
         {
