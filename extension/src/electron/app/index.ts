@@ -378,6 +378,8 @@ const setUpWebSocket = () => {
           }
         }
       });
+    } else {
+      window.electronAPI.debug("Unknown message received: " + JSON.stringify(message));
     }
   };
 };

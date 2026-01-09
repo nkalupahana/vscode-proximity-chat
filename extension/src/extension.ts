@@ -6,125 +6,17 @@ import gitUrlParse from 'git-url-parse';
 import { ExtensionIncomingMessage, extensionIncomingMessageSchema } from './ipc';
 import { ParticipantsTreeViewDataProvider } from './participantsTreeView';
 import { debounce } from "lodash";
+import { info, error } from './log';
+import { ERR_NO_REMOTES, ERR_NOT_IN_GIT_REPO, getRepoAttributes, trySendPath } from './path';
 
 const STATUS_BAR_WARNING_BACKGROUND = new vscode.ThemeColor("statusBarItem.warningBackground");
-let lastSentFsPath: string | null = null;
 
-const error = (message: string) => {
-  vscode.window.showErrorMessage("Proximity Chat: " + message);
-};
-
-const info = (message: string) => {
-  vscode.window.showInformationMessage("Proximity Chat: " + message);
-};
-
-const sendPath = (electron: ChildProcess, fsPath: string | null, path: string | null, remote: string | null, prettyPath: string | null) => {
-  lastSentFsPath = fsPath;
-  electron.send({
-    command: "set_path",
-    path: path,
-    prettyPath: prettyPath,
-    remote: remote
-  });
-};
-
-const lastSentPathActive = () => {
-  let found = false;
-  vscode.window.visibleTextEditors.forEach(editor => {
-    if (editor.document.uri.fsPath === lastSentFsPath) {
-      found = true;
-    }
-  });
-
-  return found;
-};
-
-// Debounced because when you switch from one file to another in VSCode via the sidebar,
-// it sends an undefined first, and then the new file.
-const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
-  if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
-    if (!lastSentPathActive()) {
-      sendPath(electron, null, null, null, null);
-    }
-    return;
-  }
-
-  const data = getRepoAttributes(editor.document.uri.fsPath, debug);
-
-  if (typeof data === "object" && data !== null) {
-    const normalizedPath = normalizePath(editor.document.uri.fsPath);
-    if (!normalizedPath.startsWith(data.basePath)) {
-      error(`Unable to update path. Path (${normalizedPath}) should start with repo base path ${data.basePath}, but it doesn't.`);
-    } else {
-      const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
-      const prettyPath = path.normalize(editor.document.uri.fsPath).slice(data.basePath.length).split(path.sep).join(path.posix.sep);
-      sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote, prettyPath);
-    }
-  }
-}, 100);
-
-const ERR_NOT_IN_GIT_REPO = "ERR_NOT_IN_GIT_REPO";
-const ERR_NO_REMOTES = "ERR_NO_REMOTES";
-
-const getRepoAttributes = (pathStr: string, debug: (message: string) => void) => {
-  const fallbackRemoteName: string = vscode.workspace.getConfiguration().get("proximityChat.fallbackRemoteName") ?? "origin";
-  const { dir } = path.parse(pathStr);
-  let remotes: string;
-  try {
-    remotes = execSync("git remote", { cwd: dir }).toString().trim();
-  } catch {
-    return ERR_NOT_IN_GIT_REPO;
-  }
-
-  let remote: string;
-  if (remotes.includes(fallbackRemoteName)) {
-    remote = fallbackRemoteName;
-  } else if (remotes.length > 0) {
-    remote = remotes.split("\n")[0].trim();
-  } else {
-    return ERR_NO_REMOTES;
-  }
-
-  let remotePath: string;
-  try {
-    remotePath = execSync(`git remote get-url ${remote}`, { cwd: dir }).toString().trim();
-  } catch {
-    error(`Failed to get Git remote path for remote "${remote}".`);
-    return null;
-  }
-  const remoteParsed = gitUrlParse(remotePath.toLowerCase());
-  if (!remoteParsed.resource || !remoteParsed.pathname) {
-    error("Failed to parse Git remote path: " + remotePath);
-    return null;
-  }
-
-  let basePath: string;
-  try {
-    basePath = execSync(`git rev-parse --show-toplevel`, { cwd: dir }).toString().trim();
-  } catch {
-    error("Failed to get Git repo top-level path in " + dir);
-    return null;
-  }
-
-  return {
-    remote: remoteParsed.resource + remoteParsed.pathname,
-    basePath: normalizePath(basePath)
-  };
-};
-
-const normalizePath = (pathStr: string) => {
-  return path.normalize(pathStr).toLowerCase();
-};
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // This line of code will only be executed once when your extension is activated
   const channel = vscode.window.createOutputChannel("Proximity Chat", { log: true });
   const debug = (message: string) => {
     channel.appendLine("[Extension]" + message);
   };
+
   const muteIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   const deafenIcon = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   const participantsTreeViewDataProvider = new ParticipantsTreeViewDataProvider();
@@ -140,6 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (name === undefined) return;
     vscode.workspace.getConfiguration().update("proximityChat.name", name, true);
   });
+  context.subscriptions.push(setNameCommand);
 
   const startCommand = vscode.commands.registerCommand('proximity-chat.start', async () => {
     // Reset state
@@ -156,7 +49,6 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // install dir is the root folder in which electron is installed and extension has access
     const installDir = context.globalStorageUri.fsPath;
     const envVars = process.env;
     const electronManager = new ElectronManager(installDir, envVars);
@@ -212,7 +104,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     // Defining each command twice is necessary because
-    // package > contributes > commands does not allow duplicate commands
+    // package.json > contributes > commands does not allow duplicate commands
     const muteCommand = vscode.commands.registerCommand('proximity-chat.mute', sendMute);
     const unmuteCommand = vscode.commands.registerCommand('proximity-chat.unmute', sendMute);
     const deafenCommand = vscode.commands.registerCommand('proximity-chat.deafen', sendDeafen);
@@ -270,59 +162,64 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       debug("Received command: " + message.command);
-      if (message.command === "request_path") {
-        trySendPath(electron, vscode.window.activeTextEditor, debug);
+      debug(JSON.stringify(message));
+      switch (message.command) {
+        case "request_path":
+          trySendPath(electron, vscode.window.activeTextEditor, debug);
+          break;
+        case "request_name":
+          const name = vscode.workspace.getConfiguration().get("proximityChat.name") ?? "";
+          if (name) {
+            electron.send({
+              command: "set_name",
+              name
+            });
+          }
+          break;
+        case "debug":
+          channel.appendLine("[Electron]" + message.message);
+          break;
+        case "info":
+          info(message.message);
+          break;
+        case "error":
+          error(message.message);
+          electron.kill(); // errors are fatal
+          break;
+        case "mute_status":
+          vscode.commands.executeCommand('setContext', 'proximity-chat.muted', message.muted);
+          if (message.muted) {
+            muteIcon.text = "$(mic) Muted";
+            muteIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
+          } else {
+            muteIcon.text = "$(mic-filled)";
+            muteIcon.backgroundColor = undefined;
+          }
+          break;
+        case "deafen_status":
+          vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', message.deafened);
+          if (message.deafened) {
+            deafenIcon.text = "$(mute) Deafened";
+            deafenIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
+          } else {
+            deafenIcon.text = "$(unmute)";
+            deafenIcon.backgroundColor = undefined;
+          }
+          break;
+        case "active_sessions":
+          participantsTreeViewDataProvider.setActiveSessions(message);
+          break;
+        case "reset_active_sessions":
+          participantsTreeViewDataProvider.setActiveSessions(null);
+          break;
+        default:
+          const _message: never = message;
+          debug("Unknown message received: " + JSON.stringify(message));
       }
-      if (message.command === "request_name") {
-        const name = vscode.workspace.getConfiguration().get("proximityChat.name") ?? "";
-        if (name) {
-          electron.send({
-            command: "set_name",
-            name
-          });
-        }
-      }
-      if (message.command === "debug") {
-        channel.appendLine("[Electron]" + message.message);
-      }
-      if (message.command === "info") {
-        info(message.message as string);
-      }
-      if (message.command === "error") {
-        error(message.message as string);
-        electron.kill(); // errors are fatal
-      }
-      if (message.command === "mute_status") {
-        vscode.commands.executeCommand('setContext', 'proximity-chat.muted', message.muted);
-        if (message.muted) {
-          muteIcon.text = "$(mic) Muted";
-          muteIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
-        } else {
-          muteIcon.text = "$(mic-filled)";
-          muteIcon.backgroundColor = undefined;
-        }
-       }
-       if (message.command === "deafen_status") {
-        vscode.commands.executeCommand('setContext', 'proximity-chat.deafened', message.deafened);
-        if (message.deafened) {
-          deafenIcon.text = "$(mute) Deafened";
-          deafenIcon.backgroundColor = STATUS_BAR_WARNING_BACKGROUND;
-        } else {
-          deafenIcon.text = "$(unmute)";
-          deafenIcon.backgroundColor = undefined;
-         }
-       }
-       if (message.command === "active_sessions") {
-        participantsTreeViewDataProvider.setActiveSessions(message);
-       }
-       if (message.command === "reset_active_sessions") {
-        participantsTreeViewDataProvider.setActiveSessions(null);
-       }
     });
   });
 
   context.subscriptions.push(startCommand);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() { }
