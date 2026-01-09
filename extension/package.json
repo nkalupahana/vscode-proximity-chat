@@ -6,6 +6,7 @@
   "engines": {
     "vscode": "^1.107.0"
   },
+  "publisher": "nisala",
   "categories": [
     "Other"
   ],
