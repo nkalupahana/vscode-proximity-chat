@@ -24,6 +24,14 @@ declare global {
   }
 }
 
+window.addEventListener("error", (event) => {
+  window.electronAPI.debug(`Uncaught exception (line ${event.lineno}, column ${event.colno}, error ${event.error}): ${event.message}`);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  window.electronAPI.debug("Uncaught promise rejection: " + event.reason);
+});
+
 let ws: WebSocket | null = null;
 let remote: string | null = null;
 let path: string | null = null;
