@@ -102,6 +102,10 @@
       {
         "command": "proximity-chat.set-name",
         "title": "Proximity Chat: Set Username..."
+      },
+      {
+        "command": "proximity-chat.openParticipantFile",
+        "title": "Open Participant File"
       }
     ]
   },
