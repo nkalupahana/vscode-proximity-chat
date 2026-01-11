@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { cloudflareSessionSchema, sendTrackSchema, messageSchema, sessionSchema, receiveTracksSchema, renegotiateSchema, cloudflareReceiveTrackSchema, cloudflareSendTrackSchema } from './schema';
 import sdp from "sdp";
+import index from './index.html' with { type: 'text' };
 
 const getBasePath = (appId: string) => {
   return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
@@ -152,6 +153,10 @@ const createWebSocket = async (request: Request, env: Env) => {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === '/' && request.method === 'GET') {
+      return new Response(index, { status: 200, headers: { 'content-type': 'text/html' } });
+    }
 
     // Create session request
     if (url.pathname === '/session' && request.method === 'POST') {
