@@ -2,7 +2,7 @@
   "name": "proximity-chat",
   "displayName": "Proximity Chat",
   "description": "Filesystem-based proximity voice chat.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.100.0"
@@ -16,6 +16,7 @@
     "type": "git",
     "url": "git+https://github.com/nkalupahana/vscode-proximity-chat.git"
   },
+  "homepage": "https://prox.nisa.la",
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
