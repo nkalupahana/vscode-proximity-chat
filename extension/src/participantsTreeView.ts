@@ -3,13 +3,22 @@ import { ActiveSessionsMessage } from './ipc';
 
 const NO_DATA_ID = "no-data";
 
-export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Participant> {
+export class ParticipantsTreeViewDataProvider
+  implements TreeDataProvider<Participant>
+{
   private _onDidChangeTreeData: EventEmitter<null> = new EventEmitter<null>();
   readonly onDidChangeTreeData: Event<null> = this._onDidChangeTreeData.event;
   private data: ActiveSessionsMessage | null = null;
+  private selectionEpoch = 0;
 
   setActiveSessions(data: ActiveSessionsMessage | null) {
     this.data = data;
+    this._onDidChangeTreeData.fire(null);
+  }
+
+  // hack to clear/unselect TreeView (see: https://github.com/microsoft/vscode/issues/48754#issuecomment-3665282917)
+  clearSelection(): void {
+    this.selectionEpoch++;
     this._onDidChangeTreeData.fire(null);
   }
 
@@ -26,10 +35,11 @@ export class ParticipantsTreeViewDataProvider implements TreeDataProvider<Partic
       const participants = this.data.sessions.map(session => {
         const me = session.id === this.data!.sessionId;
         return new Participant(
-          session.id,
+          `${session.id}@${this.selectionEpoch}`,
           me ? `You (${session.name})` : session.name,
           session.prettyPath.slice(1),
-          me ? -1 : session.distance
+          me ? -1 : session.distance,
+          session.path
         );
       });
 
@@ -47,7 +57,8 @@ class Participant extends TreeItem {
     public readonly id: string,
     public readonly name: string,
     public readonly path: string,
-    public readonly distance: number
+    public readonly distance: number,
+    public readonly filePath?: string
   ) {
     super(name, TreeItemCollapsibleState.None);
     this.id = id;
@@ -66,5 +77,13 @@ class Participant extends TreeItem {
       this.iconPath = new ThemeIcon("audio-0");
     }
     this.tooltip = `${name} | ${path} | ${hopText}`;
+
+    if (filePath) {
+      this.command = {
+        command: "proximity-chat.openParticipantFile",
+        title: "Open File",
+        arguments: [filePath]
+      };
+    }
   }
 }
