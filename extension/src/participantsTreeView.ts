@@ -1,5 +1,6 @@
 import { EventEmitter, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Event, ThemeIcon } from 'vscode';
 import { ActiveSessionsMessage } from './ipc';
+import path from 'node:path';
 
 const NO_DATA_ID = "no-data";
 
@@ -9,10 +10,16 @@ export class ParticipantsTreeViewDataProvider
   private _onDidChangeTreeData: EventEmitter<null> = new EventEmitter<null>();
   readonly onDidChangeTreeData: Event<null> = this._onDidChangeTreeData.event;
   private data: ActiveSessionsMessage | null = null;
+  private basePath: string | null = null;
   private selectionEpoch = 0;
 
   setActiveSessions(data: ActiveSessionsMessage | null) {
     this.data = data;
+    this._onDidChangeTreeData.fire(null);
+  }
+
+  setBasePath(basePath: string | null) {
+    this.basePath = basePath;
     this._onDidChangeTreeData.fire(null);
   }
 
@@ -29,17 +36,22 @@ export class ParticipantsTreeViewDataProvider
   getChildren(element?: Participant | undefined): ProviderResult<Participant[]> {
     if (element === undefined) {
       if (this.data === null) {
-        return [new Participant(NO_DATA_ID, "Open a file to see other participants here. This may take a few seconds to load.", "", -1)];
+        return [new Participant(NO_DATA_ID, "Open a file to see other participants here. This may take a few seconds to load.", "", -1, null)];
       }
 
       const participants = this.data.sessions.map(session => {
         const me = session.id === this.data!.sessionId;
+        // Convert posix path to system format
+        let systemPath: string | null = null;
+        if (this.basePath && session.path) {
+          systemPath = path.join(this.basePath, session.path.split(path.posix.sep).join(path.sep));
+        }
         return new Participant(
-          `${session.id}@${this.selectionEpoch}`,
+          `${session.id}@${this.selectionEpoch}@${systemPath}`,
           me ? `You (${session.name})` : session.name,
           session.prettyPath.slice(1),
           me ? -1 : session.distance,
-          session.path
+          systemPath
         );
       });
 
@@ -58,7 +70,7 @@ class Participant extends TreeItem {
     public readonly name: string,
     public readonly path: string,
     public readonly distance: number,
-    public readonly filePath?: string
+    public readonly filePath: string | null
   ) {
     super(name, TreeItemCollapsibleState.None);
     this.id = id;
@@ -67,7 +79,7 @@ class Participant extends TreeItem {
 
     if (id === NO_DATA_ID) return;
 
-    let hopText = `${distance} hop${distance === 1 ? "" : "s"}`;
+    let hopText = `${distance} hop${distance === 1 ? "" : "s"} away`;
     if (distance <= 0) {
       hopText = "In the same file";
       this.iconPath = new ThemeIcon("audio-2");
@@ -76,7 +88,7 @@ class Participant extends TreeItem {
     } else if (distance <= 2) {
       this.iconPath = new ThemeIcon("audio-0");
     }
-    this.tooltip = `${name} | ${path} | ${hopText}`;
+    this.tooltip = `${name} | ${path} | ${hopText} | Click to open`;
 
     if (filePath) {
       this.command = {
