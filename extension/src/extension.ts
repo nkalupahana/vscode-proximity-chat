@@ -132,7 +132,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(((editor) => {
-      trySendPath(electron, editor, debug);
+      trySendPath({ electron, editor, debug, provider: participantsTreeViewDataProvider });
 	  }));
 
     electron.on('exit', () => {
@@ -163,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
       debug(JSON.stringify(message));
       switch (message.command) {
         case "request_path":
-          trySendPath(electron, vscode.window.activeTextEditor, debug);
+          trySendPath({ electron, editor: vscode.window.activeTextEditor, debug, provider: participantsTreeViewDataProvider });
           break;
         case "request_name":
           const name = vscode.workspace.getConfiguration().get("proximityChat.name") ?? "";
@@ -221,16 +221,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const openParticipantFileCommand = vscode.commands.registerCommand(
     'proximity-chat.openParticipantFile',
-    async (filePath: string) => {
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-      if (!workspaceFolder) return;
-
-      const repoAttributes = getRepoAttributes(workspaceFolder.uri.fsPath, debug);
-      if (!repoAttributes || typeof repoAttributes === 'string') return;
-
-      const actualPath = filePath.split(path.posix.sep).join(path.sep);
-      const fullPath = path.join(repoAttributes.basePath, actualPath);
-
+    async (fullPath: string) => {
       const document = await vscode.workspace.openTextDocument(fullPath);
       await vscode.window.showTextDocument(document);
 

@@ -4,11 +4,29 @@ import { error } from "./log";
 import path from "node:path";
 import { type ChildProcess, execSync } from "node:child_process";
 import gitUrlParse from "git-url-parse";
+import type { ParticipantsTreeViewDataProvider } from "./participantsTreeView";
 
 let lastSentFsPath: string | null = null;
 
-const sendPath = (electron: ChildProcess, fsPath: string | null, path: string | null, remote: string | null, prettyPath: string | null) => {
+const sendPath = ({
+  electron,
+  fsPath,
+  basePath,
+  path,
+  remote,
+  prettyPath,
+  provider
+}: {
+  electron: ChildProcess;
+  fsPath: string | null;
+  basePath: string | null;
+  path: string | null;
+  remote: string | null;
+  prettyPath: string | null;
+  provider: ParticipantsTreeViewDataProvider;
+}) => {
   lastSentFsPath = fsPath;
+  provider.setBasePath(basePath);
   electron.send({
     command: "set_path",
     path: path,
@@ -30,10 +48,28 @@ const lastSentPathActive = () => {
 
 // Debounced because when you switch from one file to another in VSCode via the sidebar,
 // it sends an undefined first, and then the new file.
-export const trySendPath = debounce((electron: ChildProcess, editor: vscode.TextEditor | null | undefined, debug: (message: string) => void) => {
+export const trySendPath = debounce(({
+  electron,
+  editor,
+  debug,
+  provider
+}: {
+  electron: ChildProcess;
+  editor: vscode.TextEditor | null | undefined;
+  debug: (message: string) => void;
+  provider: ParticipantsTreeViewDataProvider;
+}) => {
   if (editor === undefined || editor === null || editor.document.uri.scheme !== "file") {
     if (!lastSentPathActive()) {
-      sendPath(electron, null, null, null, null);
+      sendPath({
+        electron,
+        fsPath: null,
+        basePath: null,
+        path: null,
+        remote: null,
+        prettyPath: null,
+        provider
+      });
     }
     return;
   }
@@ -47,7 +83,15 @@ export const trySendPath = debounce((electron: ChildProcess, editor: vscode.Text
     } else {
       const serverPath = normalizedPath.replace(data.basePath, "").split(path.sep).join(path.posix.sep);
       const prettyPath = path.normalize(editor.document.uri.fsPath).slice(data.basePath.length).split(path.sep).join(path.posix.sep);
-      sendPath(electron, editor.document.uri.fsPath, serverPath, data.remote, prettyPath);
+      sendPath({
+        electron,
+        fsPath: editor.document.uri.fsPath,
+        basePath: data.basePath,
+        path: serverPath,
+        remote: data.remote,
+        prettyPath,
+        provider
+      });
     }
   }
 }, 100);
