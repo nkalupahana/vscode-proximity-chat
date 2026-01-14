@@ -218,6 +218,26 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(startCommand);
+
+  const openParticipantFileCommand = vscode.commands.registerCommand(
+    'proximity-chat.openParticipantFile',
+    async (filePath: string) => {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) return;
+
+      const repoAttributes = getRepoAttributes(workspaceFolder.uri.fsPath, debug);
+      if (!repoAttributes || typeof repoAttributes === 'string') return;
+
+      const actualPath = filePath.split(path.posix.sep).join(path.sep);
+      const fullPath = path.join(repoAttributes.basePath, actualPath);
+
+      const document = await vscode.workspace.openTextDocument(fullPath);
+      await vscode.window.showTextDocument(document);
+
+      participantsTreeViewDataProvider.clearSelection();
+    }
+  );
+  context.subscriptions.push(openParticipantFileCommand);
 }
 
 export function deactivate() { }
