@@ -20,6 +20,14 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "proximity-chat.openParticipantFile",
+          "when": "false"
+        }
+      ]
+    },
     "icons": {
       "audio-2": {
         "description": "Audio icon with two lines",
@@ -106,7 +114,7 @@
       },
       {
         "command": "proximity-chat.openParticipantFile",
-        "title": "Open Participant File"
+        "title": "Open Participant File From Chat Participants Tree View"
       }
     ]
   },
