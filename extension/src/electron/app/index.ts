@@ -154,6 +154,10 @@ try {
 }
 
 const track = localStream.getTracks()[0];
+track.addEventListener("ended", () => {
+  window.electronAPI.info("Lost audio input. Trying to find another microphone...");
+  window.location.reload();
+});
 window.electronAPI.onMute(() => {
   track.enabled = !track.enabled;
 
