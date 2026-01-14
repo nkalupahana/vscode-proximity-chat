@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
       value: vscode.workspace.getConfiguration().get("proximityChat.name") ?? ""
     });
     if (name === undefined) return;
-    vscode.workspace.getConfiguration().update("proximityChat.name", name, true);
+    vscode.workspace.getConfiguration().update("proximityChat.name", name.trim(), true);
   });
   context.subscriptions.push(setNameCommand);
 

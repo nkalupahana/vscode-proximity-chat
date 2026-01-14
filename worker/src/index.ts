@@ -99,7 +99,7 @@ const receiveTracks = async (request: Request, env: Env) => {
     const msid = sdp.parseMsid(section);
     streamIdToTrackId[msid.stream] = midToTrackId[mid]!;
   }
-  return new Response(JSON.stringify({...responseJson, streamIdToTrackId }));
+  return new Response(JSON.stringify({ ...responseJson, streamIdToTrackId }));
 }
 
 const renegotiate = async (request: Request, env: Env) => {
@@ -266,7 +266,7 @@ export class WebSocketServer extends DurableObject {
 
       this.sendActiveSessions();
     } else if (message.command === "set_name") {
-      const newName = message.name || undefined;
+      const newName = message.name.trim() || undefined;
       if (session.name === newName) return;
       const newAttachment = { ...session };
       if (newName) {
@@ -274,7 +274,7 @@ export class WebSocketServer extends DurableObject {
       } else {
         delete newAttachment.name;
       }
-      
+
       ws.serializeAttachment(newAttachment);
       this.sessions.set(ws, newAttachment);
 
