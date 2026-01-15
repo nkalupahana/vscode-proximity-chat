@@ -275,7 +275,7 @@ window.electronAPI.onSetPath((newPath) => {
   prettyPath = newPath.prettyPath;
 
   if (path !== null && prettyPath !== null) {
-    if (ws === null) {
+    if (ws === null || ws.readyState === WebSocket.CLOSED) {
       setUpWebSocket();
     }
     setPath(path, prettyPath);
