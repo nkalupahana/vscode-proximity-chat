@@ -145,6 +145,7 @@ const createWebSocket = async (request: Request, env: Env) => {
     return new Response("Missing remote", { status: 400 });
   }
 
+  env.REMOTE_LAST_CONNECTED.put(remote, new Date().toISOString());
   const stub = env.WEBSOCKET_SERVER.getByName(remote);
   return stub.fetch(request);
 }

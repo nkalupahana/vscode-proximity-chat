@@ -23,6 +23,12 @@
 			}
 		]
 	},
+	"kv_namespaces": [
+		{
+			"binding": "REMOTE_LAST_CONNECTED",
+			"id": "df17aa8de72646029525f7cf2fc4a982"
+		}
+	],
 	"observability": {
 		"enabled": true
 	},
