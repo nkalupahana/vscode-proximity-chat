@@ -2,7 +2,7 @@
   "name": "proximity-chat",
   "displayName": "Proximity Chat",
   "description": "Filesystem-based proximity voice chat.",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.100.0"
