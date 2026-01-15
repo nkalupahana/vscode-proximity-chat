@@ -33,3 +33,9 @@ export function getVolume(path1: string, path2: string): number {
     } as Record<number, number>;
     return DISTANCE_TO_VOLUME[distance] ?? 0;
 }
+
+export function quitIfOffline() {
+    if (!window.navigator.onLine) {
+        window.electronAPI.error("Offline; cannot connect to server. Please connect to the internet and try again.");
+    }
+}

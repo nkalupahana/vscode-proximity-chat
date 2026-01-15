@@ -1,5 +1,5 @@
 import { Mutex } from "async-mutex";
-import { getPathDistance, getVolume } from "./utils";
+import { getPathDistance, getVolume, quitIfOffline } from "./utils";
 import { ActiveSessionsMessage, SetNameMessage, type SetPathMessage } from "../../ipc";
 import { ActiveTracksMessage, WebSocketMessage, websocketMessageSchema } from "./ws";
 import { chunk, set } from "lodash";
@@ -52,6 +52,9 @@ window.electronAPI.onSetName((newName) => {
     }));
   }
 });
+
+window.addEventListener("offline", quitIfOffline);
+quitIfOffline();
 
 window.electronAPI.requestName();
 
