@@ -11,3 +11,5 @@ esbuild.js
 **/*.map
 **/*.ts
 **/.vscode-test.*
+.claude
+patches/**
