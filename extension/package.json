@@ -2,7 +2,7 @@
   "name": "proximity-chat",
   "displayName": "Proximity Chat",
   "description": "Filesystem-based proximity voice chat.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.100.0"
@@ -57,7 +57,9 @@
           "id": "proximity-chat-participants",
           "name": "Chat Participants",
           "when": "proximity-chat.running",
-          "visibility": "visible"
+          "visibility": "visible",
+          "icon": "./audio.svg",
+          "contextualTitle": "Proximity Chat"
         }
       ]
     },
