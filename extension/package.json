@@ -141,7 +141,7 @@
     "@types/vscode": "^1.100.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "electron": "^39.2.7",
+    "electron": "^39.8.3",
     "esbuild": "^0.27.1",
     "esbuild-plugin-copy": "^2.1.1",
     "eslint": "^9.39.1",
