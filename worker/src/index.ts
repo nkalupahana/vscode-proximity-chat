@@ -3,6 +3,21 @@ import { cloudflareSessionSchema, sendTrackSchema, messageSchema, sessionSchema,
 import sdp from "sdp";
 import index from './index.html' with { type: 'text' };
 
+const ALLOWED_ORIGIN = 'https://phip1jec76xfr2w6zwnmgnwlznidx1sp.ui.nabu.casa';
+
+const withCors = (response: Response): Response => {
+  const headers = new Headers(response.headers);
+  headers.set('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+    webSocket: response.webSocket,
+  });
+}
+
 const getBasePath = (appId: string) => {
   return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
 }
@@ -153,34 +168,38 @@ const createWebSocket = async (request: Request, env: Env) => {
 // Worker
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (request.method === 'OPTIONS') {
+      return withCors(new Response(null, { status: 204 }));
+    }
+
     const url = new URL(request.url);
 
     if (url.pathname === '/' && request.method === 'GET') {
-      return new Response(index, { status: 200, headers: { 'content-type': 'text/html' } });
+      return withCors(new Response(index, { status: 200, headers: { 'content-type': 'text/html' } }));
     }
 
     // Create session request
     if (url.pathname === '/session' && request.method === 'POST') {
-      return createSession(request, env);
+      return withCors(await createSession(request, env));
     }
 
     if (url.pathname === '/tracks/send' && request.method === 'POST') {
-      return sendTrack(request, env);
+      return withCors(await sendTrack(request, env));
     }
 
     if (url.pathname === '/tracks/receive' && request.method === 'POST') {
-      return receiveTracks(request, env);
+      return withCors(await receiveTracks(request, env));
     }
 
     if (url.pathname === '/renegotiate') {
-      return renegotiate(request, env);
+      return withCors(await renegotiate(request, env));
     }
 
     if (url.pathname === '/websocket' && request.method === 'GET') {
-      return createWebSocket(request, env);
+      return withCors(await createWebSocket(request, env));
     }
 
-    return new Response(null, { status: 404 });
+    return withCors(new Response(null, { status: 404 }));
   },
 };
 
