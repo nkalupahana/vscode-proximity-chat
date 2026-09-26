@@ -1,294 +1,324 @@
 import { DurableObject } from 'cloudflare:workers';
-import { cloudflareSessionSchema, sendTrackSchema, messageSchema, sessionSchema, receiveTracksSchema, renegotiateSchema, cloudflareReceiveTrackSchema, cloudflareSendTrackSchema } from './schema';
-import sdp from "sdp";
+import {
+	cloudflareSessionSchema,
+	sendTrackSchema,
+	messageSchema,
+	sessionSchema,
+	receiveTracksSchema,
+	renegotiateSchema,
+	cloudflareReceiveTrackSchema,
+	cloudflareSendTrackSchema,
+} from './schema';
+import sdp from 'sdp';
 import index from './index.html' with { type: 'text' };
 
+const ALLOWED_ORIGIN = 'https://phip1jec76xfr2w6zwnmgnwlznidx1sp.ui.nabu.casa';
+
+const withCors = (response: Response): Response => {
+	const headers = new Headers(response.headers);
+	headers.set('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+	headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+	headers.set('Access-Control-Allow-Headers', 'Content-Type');
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+		webSocket: response.webSocket,
+	});
+};
+
 const getBasePath = (appId: string) => {
-  return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
-}
+	return `https://rtc.live.cloudflare.com/v1/apps/${appId}`;
+};
 
 const createSession = async (request: Request, env: Env) => {
-  const data = sessionSchema.parse(await request.json());
+	const data = sessionSchema.parse(await request.json());
 
-  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/new`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      Authorization: `Bearer ${env.APP_TOKEN}`,
-    },
-    body: JSON.stringify({
-      sessionDescription: {
-        type: 'offer',
-        sdp: data.sdp,
-      },
-    }),
-  });
+	const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/new`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			Authorization: `Bearer ${env.APP_TOKEN}`,
+		},
+		body: JSON.stringify({
+			sessionDescription: {
+				type: 'offer',
+				sdp: data.sdp,
+			},
+		}),
+	});
 
-  if (!response.ok) {
-    console.error("Error creating session");
-    console.error(data);
-    console.error(await response.text());
-    return new Response(null, { status: 500 });
-  }
-  return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
-}
+	if (!response.ok) {
+		console.error('Error creating session');
+		console.error(data);
+		console.error(await response.text());
+		return new Response(null, { status: 500 });
+	}
+	return new Response(JSON.stringify(cloudflareSessionSchema.parse(await response.json())));
+};
 
 const sendTrack = async (request: Request, env: Env) => {
-  const data = sendTrackSchema.parse(await request.json());
+	const data = sendTrackSchema.parse(await request.json());
 
-  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      Authorization: `Bearer ${env.APP_TOKEN}`,
-    },
-    body: JSON.stringify({
-      sessionDescription: {
-        type: 'offer',
-        sdp: data.sdp,
-      },
-      tracks: [data.track]
-    }),
-  });
+	const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			Authorization: `Bearer ${env.APP_TOKEN}`,
+		},
+		body: JSON.stringify({
+			sessionDescription: {
+				type: 'offer',
+				sdp: data.sdp,
+			},
+			tracks: [data.track],
+		}),
+	});
 
-  if (!response.ok) {
-    console.error("Error sending track");
-    console.error(data);
-    console.error(await response.text());
-    return new Response(null, { status: 500 });
-  }
-  return new Response(JSON.stringify(cloudflareSendTrackSchema.parse(await response.json())));
-}
+	if (!response.ok) {
+		console.error('Error sending track');
+		console.error(data);
+		console.error(await response.text());
+		return new Response(null, { status: 500 });
+	}
+	return new Response(JSON.stringify(cloudflareSendTrackSchema.parse(await response.json())));
+};
 
 const receiveTracks = async (request: Request, env: Env) => {
-  const data = receiveTracksSchema.parse(await request.json());
+	const data = receiveTracksSchema.parse(await request.json());
 
-  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      Authorization: `Bearer ${env.APP_TOKEN}`,
-    },
-    body: JSON.stringify({
-      tracks: data.tracks
-    }),
-  });
+	const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/tracks/new`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			Authorization: `Bearer ${env.APP_TOKEN}`,
+		},
+		body: JSON.stringify({
+			tracks: data.tracks,
+		}),
+	});
 
-  if (!response.ok) {
-    console.error("Error receiving tracks");
-    console.error(data);
-    console.error(await response.text());
-    return new Response(null, { status: 500 });
-  }
+	if (!response.ok) {
+		console.error('Error receiving tracks');
+		console.error(data);
+		console.error(await response.text());
+		return new Response(null, { status: 500 });
+	}
 
-  const datap = await response.json();
-  const responseJson = cloudflareReceiveTrackSchema.parse(datap);
-  const midToTrackId: Record<string, string> = {};
-  for (const track of responseJson.tracks) {
-    midToTrackId[track.mid] = track.trackName;
-  }
-  const streamIdToTrackId: Record<string, string> = {};
-  const sections = sdp.splitSections(responseJson.sessionDescription.sdp);
-  for (const section of sections) {
-    if (sdp.getKind(section) !== "audio") continue;
-    if (sdp.getDirection(section, section) !== "sendonly") continue;
+	const datap = await response.json();
+	const responseJson = cloudflareReceiveTrackSchema.parse(datap);
+	const midToTrackId: Record<string, string> = {};
+	for (const track of responseJson.tracks) {
+		midToTrackId[track.mid] = track.trackName;
+	}
+	const streamIdToTrackId: Record<string, string> = {};
+	const sections = sdp.splitSections(responseJson.sessionDescription.sdp);
+	for (const section of sections) {
+		if (sdp.getKind(section) !== 'audio') continue;
+		if (sdp.getDirection(section, section) !== 'sendonly') continue;
 
-    const mid = sdp.getMid(section);
-    if (!(mid in midToTrackId)) continue;
+		const mid = sdp.getMid(section);
+		if (!(mid in midToTrackId)) continue;
 
-    const msid = sdp.parseMsid(section);
-    streamIdToTrackId[msid.stream] = midToTrackId[mid]!;
-  }
-  return new Response(JSON.stringify({ ...responseJson, streamIdToTrackId }));
-}
+		const msid = sdp.parseMsid(section);
+		streamIdToTrackId[msid.stream] = midToTrackId[mid]!;
+	}
+	return new Response(JSON.stringify({ ...responseJson, streamIdToTrackId }));
+};
 
 const renegotiate = async (request: Request, env: Env) => {
-  const data = renegotiateSchema.parse(await request.json());
+	const data = renegotiateSchema.parse(await request.json());
 
-  const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/renegotiate`, {
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      Authorization: `Bearer ${env.APP_TOKEN}`,
-    },
-    body: JSON.stringify({
-      sessionDescription: {
-        type: "answer",
-        sdp: data.sdp
-      }
-    }),
-  });
+	const response = await fetch(`${getBasePath(env.APP_ID)}/sessions/${data.sessionId}/renegotiate`, {
+		method: 'PUT',
+		headers: {
+			'content-type': 'application/json',
+			Authorization: `Bearer ${env.APP_TOKEN}`,
+		},
+		body: JSON.stringify({
+			sessionDescription: {
+				type: 'answer',
+				sdp: data.sdp,
+			},
+		}),
+	});
 
-  if (!response.ok) {
-    console.error("Error renegotiating");
-    console.error(data);
-    console.error(await response.text());
-    return new Response(null, { status: 500 });
-  }
-  return new Response();
-}
+	if (!response.ok) {
+		console.error('Error renegotiating');
+		console.error(data);
+		console.error(await response.text());
+		return new Response(null, { status: 500 });
+	}
+	return new Response();
+};
 
 const createWebSocket = async (request: Request, env: Env) => {
-  // Expect to receive a WebSocket Upgrade request.
-  // If there is one, accept the request and return a WebSocket Response.
-  const upgradeHeader = request.headers.get('Upgrade');
-  if (!upgradeHeader || upgradeHeader !== 'websocket') {
-    return new Response('Expected Upgrade: websocket', {
-      status: 426,
-    });
-  }
+	// Expect to receive a WebSocket Upgrade request.
+	// If there is one, accept the request and return a WebSocket Response.
+	const upgradeHeader = request.headers.get('Upgrade');
+	if (!upgradeHeader || upgradeHeader !== 'websocket') {
+		return new Response('Expected Upgrade: websocket', {
+			status: 426,
+		});
+	}
 
-  const url = new URL(request.url);
-  const remote = url.searchParams.get("remote");
+	const url = new URL(request.url);
+	const remote = url.searchParams.get('remote');
 
-  if (!remote) {
-    return new Response("Missing remote", { status: 400 });
-  }
+	if (!remote) {
+		return new Response('Missing remote', { status: 400 });
+	}
 
-  env.REMOTE_LAST_CONNECTED.put(remote, new Date().toISOString());
-  const stub = env.WEBSOCKET_SERVER.getByName(remote);
-  return stub.fetch(request);
-}
+	env.REMOTE_LAST_CONNECTED.put(remote, new Date().toISOString());
+	const stub = env.WEBSOCKET_SERVER.getByName(remote);
+	return stub.fetch(request);
+};
 
 // Worker
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		if (request.method === 'OPTIONS') {
+			return withCors(new Response(null, { status: 204 }));
+		}
 
-    if (url.pathname === '/' && request.method === 'GET') {
-      return new Response(index, { status: 200, headers: { 'content-type': 'text/html' } });
-    }
+		const url = new URL(request.url);
 
-    // Create session request
-    if (url.pathname === '/session' && request.method === 'POST') {
-      return createSession(request, env);
-    }
+		if (url.pathname === '/' && request.method === 'GET') {
+			return withCors(new Response(index, { status: 200, headers: { 'content-type': 'text/html' } }));
+		}
 
-    if (url.pathname === '/tracks/send' && request.method === 'POST') {
-      return sendTrack(request, env);
-    }
+		// Create session request
+		if (url.pathname === '/session' && request.method === 'POST') {
+			return withCors(await createSession(request, env));
+		}
 
-    if (url.pathname === '/tracks/receive' && request.method === 'POST') {
-      return receiveTracks(request, env);
-    }
+		if (url.pathname === '/tracks/send' && request.method === 'POST') {
+			return withCors(await sendTrack(request, env));
+		}
 
-    if (url.pathname === '/renegotiate') {
-      return renegotiate(request, env);
-    }
+		if (url.pathname === '/tracks/receive' && request.method === 'POST') {
+			return withCors(await receiveTracks(request, env));
+		}
 
-    if (url.pathname === '/websocket' && request.method === 'GET') {
-      return createWebSocket(request, env);
-    }
+		if (url.pathname === '/renegotiate') {
+			return withCors(await renegotiate(request, env));
+		}
 
-    return new Response(null, { status: 404 });
-  },
+		if (url.pathname === '/websocket' && request.method === 'GET') {
+			return withCors(await createWebSocket(request, env));
+		}
+
+		return withCors(new Response(null, { status: 404 }));
+	},
 };
 
 // Durable Object
 export class WebSocketServer extends DurableObject {
-  // Keeps track of all WebSocket connections
-  // When the DO hibernates, gets reconstructed in the constructor
-  sessions: Map<WebSocket, { [key: string]: string }>;
+	// Keeps track of all WebSocket connections
+	// When the DO hibernates, gets reconstructed in the constructor
+	sessions: Map<WebSocket, { [key: string]: string }>;
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
-    this.sessions = new Map();
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.sessions = new Map();
 
-    // Wake up hibernating WebSockets
-    this.ctx.getWebSockets().forEach((ws) => {
-      let attachment = ws.deserializeAttachment();
-      if (attachment) {
-        this.sessions.set(ws, { ...attachment });
-      }
-    });
+		// Wake up hibernating WebSockets
+		this.ctx.getWebSockets().forEach((ws) => {
+			let attachment = ws.deserializeAttachment();
+			if (attachment) {
+				this.sessions.set(ws, { ...attachment });
+			}
+		});
 
-    // Auto response to pings (no wake)
-    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
-  }
+		// Auto response to pings (no wake)
+		this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+	}
 
-  async fetch(request: Request): Promise<Response> {
-    const webSocketPair = new WebSocketPair();
-    const [client, server] = Object.values(webSocketPair);
-    const url = new URL(request.url);
-    const sessionId = url.searchParams.get("sessionId");
-    if (!sessionId) {
-      return new Response("Missing sessionId", { status: 400 });
-    }
-    const trackId = url.searchParams.get("trackId");
-    if (!trackId) {
-      return new Response("Missing trackId", { status: 400 });
-    }
+	async fetch(request: Request): Promise<Response> {
+		const webSocketPair = new WebSocketPair();
+		const [client, server] = Object.values(webSocketPair);
+		const url = new URL(request.url);
+		const sessionId = url.searchParams.get('sessionId');
+		if (!sessionId) {
+			return new Response('Missing sessionId', { status: 400 });
+		}
+		const trackId = url.searchParams.get('trackId');
+		if (!trackId) {
+			return new Response('Missing trackId', { status: 400 });
+		}
 
-    // Accept the WebSocket connection with hibernation
-    this.ctx.acceptWebSocket(server);
+		// Accept the WebSocket connection with hibernation
+		this.ctx.acceptWebSocket(server);
 
-    const data = { id: sessionId, trackId };
-    server.serializeAttachment(data);
-    this.sessions.set(server, data);
+		const data = { id: sessionId, trackId };
+		server.serializeAttachment(data);
+		this.sessions.set(server, data);
 
-    return new Response(null, {
-      status: 101,
-      webSocket: client,
-    });
-  }
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+		});
+	}
 
-  private sendActiveSessions() {
-    // Collect all active sessions
-    const sessions = [];
-    for (const [_, session] of this.sessions) {
-      if (!session.trackId) continue;
-      if (!session.path) continue;
-      sessions.push({
-        id: session.id,
-        trackId: session.trackId,
-        path: session.path,
-        prettyPath: session.prettyPath,
-        name: session.name
-      });
-    }
+	private sendActiveSessions() {
+		// Collect all active sessions
+		const sessions = [];
+		for (const [_, session] of this.sessions) {
+			if (!session.trackId) continue;
+			if (!session.path) continue;
+			sessions.push({
+				id: session.id,
+				trackId: session.trackId,
+				path: session.path,
+				prettyPath: session.prettyPath,
+				name: session.name,
+			});
+		}
 
-    // Send active track data to all clients
-    for (const [ws, _] of this.sessions) {
-      ws.send(JSON.stringify({
-        command: "active_sessions",
-        sessions
-      }));
-    }
-  }
+		// Send active track data to all clients
+		for (const [ws, _] of this.sessions) {
+			ws.send(
+				JSON.stringify({
+					command: 'active_sessions',
+					sessions,
+				}),
+			);
+		}
+	}
 
-  async webSocketMessage(ws: WebSocket, messageStr: string) {
-    // Get the session associated with the WebSocket connection.
-    const session = this.sessions.get(ws)!;
-    const message = messageSchema.parse(JSON.parse(messageStr));
-    if (message.command === "set_path") {
-      const newAttachment = { ...session, path: message.path, prettyPath: message.prettyPath };
-      ws.serializeAttachment(newAttachment);
-      this.sessions.set(ws, newAttachment);
+	async webSocketMessage(ws: WebSocket, messageStr: string) {
+		// Get the session associated with the WebSocket connection.
+		const session = this.sessions.get(ws)!;
+		const message = messageSchema.parse(JSON.parse(messageStr));
+		if (message.command === 'set_path') {
+			const newAttachment = { ...session, path: message.path, prettyPath: message.prettyPath };
+			ws.serializeAttachment(newAttachment);
+			this.sessions.set(ws, newAttachment);
 
-      this.sendActiveSessions();
-    } else if (message.command === "set_name") {
-      const newName = message.name.trim() || undefined;
-      if (session.name === newName) return;
-      const newAttachment = { ...session };
-      if (newName) {
-        newAttachment.name = newName.slice(0, 38);
-      } else {
-        delete newAttachment.name;
-      }
+			this.sendActiveSessions();
+		} else if (message.command === 'set_name') {
+			const newName = message.name.trim() || undefined;
+			if (session.name === newName) return;
+			const newAttachment = { ...session };
+			if (newName) {
+				newAttachment.name = newName.slice(0, 38);
+			} else {
+				delete newAttachment.name;
+			}
 
-      ws.serializeAttachment(newAttachment);
-      this.sessions.set(ws, newAttachment);
+			ws.serializeAttachment(newAttachment);
+			this.sessions.set(ws, newAttachment);
 
-      this.sendActiveSessions();
-    }
-  }
+			this.sendActiveSessions();
+		}
+	}
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
-    if (this.sessions.has(ws)) {
-      this.sessions.delete(ws);
-      this.sendActiveSessions();
-    }
+	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		if (this.sessions.has(ws)) {
+			this.sessions.delete(ws);
+			this.sendActiveSessions();
+		}
 
-    ws.close(code, 'Durable Object is closing WebSocket');
-  }
+		ws.close(code, 'Durable Object is closing WebSocket');
+	}
 }
